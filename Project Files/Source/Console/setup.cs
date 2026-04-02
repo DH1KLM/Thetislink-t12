@@ -37138,6 +37138,18 @@ namespace Thetis
         }
         // END CFC para
 
+        /// Push all TCI IQ/stream settings to a newly created TCI server instance.
+        /// Called from Console.SetupTCI after server creation, because the CheckedChanged
+        /// events fire during GetOptions() when TCIServer is still null.
+        public void ApplyTCISettings(TCPIPtciServer server)
+        {
+            if (server == null) return;
+            server.IQSwap = chkTCISwapIQ.Checked;
+            server.AlwaysStreamIQ = chkTCIAlwaysStreamIQ.Checked;
+            server.ExtendedIQSpectrum = chkTCIExtendedSpectrum.Checked;
+            server.SendInitialFrequencyStateOnConnect = chkTCIsendInitialStateOnConnect.Checked;
+        }
+
         private void chkTCISwapIQ_CheckedChanged(object sender, EventArgs e)
         {
             if (console != null && console.TCIServer != null) console.TCIServer.IQSwap = chkTCISwapIQ.Checked;
@@ -37146,6 +37158,11 @@ namespace Thetis
         private void chkTCIAlwaysStreamIQ_CheckedChanged(object sender, EventArgs e)
         {
             if (console != null && console.TCIServer != null) console.TCIServer.AlwaysStreamIQ = chkTCIAlwaysStreamIQ.Checked;
+        }
+
+        private void chkTCIExtendedSpectrum_CheckedChanged(object sender, EventArgs e)
+        {
+            if (console != null && console.TCIServer != null) console.TCIServer.ExtendedIQSpectrum = chkTCIExtendedSpectrum.Checked;
         }
 
         private void radTCITXchannel_CheckedChanged(object sender, EventArgs e)

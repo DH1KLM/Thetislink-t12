@@ -6110,6 +6110,7 @@ namespace Thetis
 		private bool m_bEmulateExpertSDR3Protocol = false;
         private bool m_bIQSwap = true;
         private bool m_bAlwaysStreamIQ = false;
+        private bool m_bExtendedIQSpectrum = false;
         private TCITxStereoInputMode m_txStereoInputMode = TCITxStereoInputMode.Both;
         private TCICWController m_cwController = null;
         private int m_cwInternalMacroSpeedUpdates = 0;
@@ -6245,6 +6246,11 @@ namespace Thetis
         {
             get { return m_bAlwaysStreamIQ; }
             set { m_bAlwaysStreamIQ = value; RefreshStreamRunState(); }
+        }
+        public bool ExtendedIQSpectrum
+        {
+            get { return m_bExtendedIQSpectrum; }
+            set { m_bExtendedIQSpectrum = value; }
         }
         public TCITxStereoInputMode TXStereoInputMode
         {

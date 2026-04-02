@@ -3690,6 +3690,7 @@
             this.labelTS661 = new System.Windows.Forms.LabelTS();
             this.chkTCISwapIQ = new System.Windows.Forms.CheckBoxTS();
             this.chkTCIAlwaysStreamIQ = new System.Windows.Forms.CheckBoxTS();
+            this.chkTCIExtendedSpectrum = new System.Windows.Forms.CheckBoxTS();
             this.tbMIDIcat = new System.Windows.Forms.TabPage();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
             this.chkMidiControlIDincludesStatus = new System.Windows.Forms.CheckBoxTS();
@@ -58910,9 +58911,10 @@
             this.groupBoxTS69.Controls.Add(this.labelTS661);
             this.groupBoxTS69.Controls.Add(this.chkTCISwapIQ);
             this.groupBoxTS69.Controls.Add(this.chkTCIAlwaysStreamIQ);
-            this.groupBoxTS69.Location = new System.Drawing.Point(386, 298);
+            this.groupBoxTS69.Controls.Add(this.chkTCIExtendedSpectrum);
+            this.groupBoxTS69.Location = new System.Drawing.Point(386, 270);
             this.groupBoxTS69.Name = "groupBoxTS69";
-            this.groupBoxTS69.Size = new System.Drawing.Size(330, 99);
+            this.groupBoxTS69.Size = new System.Drawing.Size(330, 127);
             this.groupBoxTS69.TabIndex = 99;
             this.groupBoxTS69.TabStop = false;
             // 
@@ -58993,7 +58995,22 @@
         " option to always stream it.");
             this.chkTCIAlwaysStreamIQ.UseVisualStyleBackColor = true;
             this.chkTCIAlwaysStreamIQ.CheckedChanged += new System.EventHandler(this.chkTCIAlwaysStreamIQ_CheckedChanged);
-            // 
+            //
+            // chkTCIExtendedSpectrum
+            //
+            this.chkTCIExtendedSpectrum.AutoSize = true;
+            this.chkTCIExtendedSpectrum.Image = null;
+            this.chkTCIExtendedSpectrum.Location = new System.Drawing.Point(6, 80);
+            this.chkTCIExtendedSpectrum.Name = "chkTCIExtendedSpectrum";
+            this.chkTCIExtendedSpectrum.Size = new System.Drawing.Size(310, 17);
+            this.chkTCIExtendedSpectrum.TabIndex = 119;
+            this.chkTCIExtendedSpectrum.Text = "Extended IQ spectrum (ThetisLink)";
+            this.toolTip1.SetToolTip(this.chkTCIExtendedSpectrum, "Send full IQ bandwidth (up to 1536 kHz) via TCI instead of the standard 384 kHz." +
+        "\r\nDesigned for use with ThetisLink. Other TCI applications may not work correctly" +
+        " with this enabled.");
+            this.chkTCIExtendedSpectrum.UseVisualStyleBackColor = true;
+            this.chkTCIExtendedSpectrum.CheckedChanged += new System.EventHandler(this.chkTCIExtendedSpectrum_CheckedChanged);
+            //
             // tbMIDIcat
             // 
             this.tbMIDIcat.BackColor = System.Drawing.SystemColors.Control;
@@ -76386,6 +76403,7 @@
         private RadioButtonTS chkCBlock_after_rx2;
         private RadioButtonTS chkCBlock_before_rx2;
         private CheckBoxTS chkTCIAlwaysStreamIQ;
+        private CheckBoxTS chkTCIExtendedSpectrum;
         private CheckBoxTS chkTCISwapIQ;
         private PanelTS panelTS15;
         private GroupBoxTS groupBoxTS69;

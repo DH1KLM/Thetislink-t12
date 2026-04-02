@@ -480,7 +480,8 @@ namespace Thetis
         unsafe private static void* m_tciTxResampler = null;
         private const int TCI_TX_MAX_OUTSTANDING = 64;
         private const int TCI_TX_EXTRA_BUFFER_MS = 50;
-        private const int TCI_MAX_IQ_STREAM_RATE = 384000;
+        private const int TCI_STANDARD_IQ_STREAM_RATE = 384000;
+        private const int TCI_EXTENDED_IQ_STREAM_RATE = 1536000;
         private const int TCI_MAX_POOLED_BLOCKS = 64;
         private const int TCI_MAX_POOLED_BUFFERS_PER_SIZE = 32;
         private static volatile bool m_runTCIStreamThreads = false;
@@ -1709,7 +1710,8 @@ namespace Thetis
             if (tciServer == null || data == null || nsamples <= 0) return;
 
             int inputRate = GetInputRate(0, id);
-            int outputRate = inputRate > TCI_MAX_IQ_STREAM_RATE ? TCI_MAX_IQ_STREAM_RATE : inputRate;
+            int maxIqRate = (tciServer.ExtendedIQSpectrum) ? TCI_EXTENDED_IQ_STREAM_RATE : TCI_STANDARD_IQ_STREAM_RATE;
+            int outputRate = inputRate > maxIqRate ? maxIqRate : inputRate;
             bool iqSwap = tciServer.IQSwap;
             float[] iq = rentTCIFloatBuffer(nsamples * 2);
             for (int i = 0; i < nsamples; i++)
@@ -1718,7 +1720,7 @@ namespace Thetis
                 iq[2 * i + 1] = iqSwap ? (float)-data[2 * i + 1] : (float)data[2 * i + 1];
             }
 
-            if (inputRate > TCI_MAX_IQ_STREAM_RATE)
+            if (inputRate > maxIqRate)
             {
                 float[] resampled = resampleTCIIQSamples(id, iq, inputRate, outputRate);
                 if (!object.ReferenceEquals(resampled, iq))

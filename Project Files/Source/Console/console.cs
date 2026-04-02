@@ -2535,6 +2535,10 @@ namespace Thetis
 
                     m_tcpTCIServer.StartServer(this, rateLimit);
 
+                    // Push saved settings to the newly created TCI server
+                    if (!IsSetupFormNull)
+                        SetupForm.ApplyTCISettings(m_tcpTCIServer);
+
                     if (!m_tcpTCIServer.IsServerRunning)
                     {
                         if (!IsSetupFormNull) SetupForm.DisableTCIServerDueToError();
