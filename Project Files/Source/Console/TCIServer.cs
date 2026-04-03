@@ -2509,6 +2509,18 @@ namespace Thetis
 			Debug.Print("SENT INITIAL STATE");
 		}
 
+		internal void sendCapabilities()
+        {
+            var caps = new List<string>();
+
+            if (m_server != null && m_server.ExtendedIQSpectrum)
+                caps.Add("extended_iq_spectrum");
+
+            // Future capabilities go here
+
+            sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
+        }
+
 		private void sendInitialisationData()
         {
 			string sProtocol; //MW0LGE_22 emulate ee3 protocol
@@ -2543,6 +2555,7 @@ namespace Thetis
 
 			sendTextFrame("modulations_list:" + ("am,sam,dsb,lsb,usb,nfm,fm,digl,digu," + sCW).ToUpper() + ";"); // MW0LGE_22b modulations are upper in sun, so replicate
 
+			sendCapabilities();
 			sendInitialRadioState();
 
 			sendTextFrame("ready;");
@@ -5184,6 +5197,9 @@ namespace Thetis
                     case "spot_clear":
                         handleSpotClear();
                         break;
+                    case "tci_caps_ex":
+                        sendCapabilities();
+                        break;
                     case "tx_profiles_ex":
                         handleTXProfiles(); // bespoke thetis cmd to send out tx profiles list
                         break;
@@ -6250,7 +6266,7 @@ namespace Thetis
         public bool ExtendedIQSpectrum
         {
             get { return m_bExtendedIQSpectrum; }
-            set { m_bExtendedIQSpectrum = value; }
+            set { m_bExtendedIQSpectrum = value; BroadcastCapabilities(); }
         }
         public TCITxStereoInputMode TXStereoInputMode
         {
@@ -7472,6 +7488,19 @@ namespace Thetis
         {
 			if (_log != null) _log.Hide();
 		}
+        internal void BroadcastCapabilities()
+        {
+            lock (m_objLocker)
+            {
+                if (m_server == null || m_socketListenersList == null) return;
+
+                foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+                {
+                    socketListener.sendCapabilities();
+                }
+            }
+        }
+
 		public void SendSpotSimulationClickToAll(string callsign, long freq)
 		{            
             lock (m_objLocker)
