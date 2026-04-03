@@ -58912,9 +58912,9 @@
             this.groupBoxTS69.Controls.Add(this.chkTCISwapIQ);
             this.groupBoxTS69.Controls.Add(this.chkTCIAlwaysStreamIQ);
             this.groupBoxTS69.Controls.Add(this.chkTCIExtendedSpectrum);
-            this.groupBoxTS69.Location = new System.Drawing.Point(386, 270);
+            this.groupBoxTS69.Location = new System.Drawing.Point(386, 298);
             this.groupBoxTS69.Name = "groupBoxTS69";
-            this.groupBoxTS69.Size = new System.Drawing.Size(330, 127);
+            this.groupBoxTS69.Size = new System.Drawing.Size(330, 105);
             this.groupBoxTS69.TabIndex = 99;
             this.groupBoxTS69.TabStop = false;
             // 
@@ -59004,10 +59004,10 @@
             this.chkTCIExtendedSpectrum.Name = "chkTCIExtendedSpectrum";
             this.chkTCIExtendedSpectrum.Size = new System.Drawing.Size(310, 17);
             this.chkTCIExtendedSpectrum.TabIndex = 119;
-            this.chkTCIExtendedSpectrum.Text = "Extended IQ spectrum (ThetisLink)";
-            this.toolTip1.SetToolTip(this.chkTCIExtendedSpectrum, "Send full IQ bandwidth (up to 1536 kHz) via TCI instead of the standard 384 kHz." +
-        "\r\nDesigned for use with ThetisLink. Other TCI applications may not work correctly" +
-        " with this enabled.");
+            this.chkTCIExtendedSpectrum.Text = "ThetisLink extensions";
+            this.toolTip1.SetToolTip(this.chkTCIExtendedSpectrum, "Enable ThetisLink TCI extensions: full IQ bandwidth (up to 1536 kHz)," +
+        " push notifications for ATT/CTUN/VFO sync/diversity, and extended control commands." +
+        "\r\nOther TCI applications may not work correctly with this enabled.");
             this.chkTCIExtendedSpectrum.UseVisualStyleBackColor = true;
             this.chkTCIExtendedSpectrum.CheckedChanged += new System.EventHandler(this.chkTCIExtendedSpectrum_CheckedChanged);
             //

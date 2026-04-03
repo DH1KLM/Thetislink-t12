@@ -868,6 +868,10 @@ namespace Thetis
 
             sendIQSampleRate(publishedRate);
 
+            // ThetisLink extension: per-receiver DDC sample rate notification
+            if (m_server != null && m_server.ExtendedIQSpectrum)
+                sendTextFrame("ddc_sample_rate_ex:" + (rx - 1) + "," + newSampleRate + ";");
+
             //sendIFLimits(-halfSample, halfSample);
             sendIFLimits(-halfSample, halfSample); // sadly this is global in tci, so use rx1
         }
@@ -1134,6 +1138,18 @@ namespace Thetis
         {
             if (m_disconnected) return;
             sendCTUN(rx - 1, enabled);
+        }
+        public void VFOSyncChanged(bool enabled)
+        {
+            if (m_disconnected) return;
+            if (m_server == null || !m_server.ExtendedIQSpectrum) return;
+            sendTextFrame("vfo_sync_ex:" + enabled.ToString().ToLower() + ";");
+        }
+        public void AttenuatorChanged(int rx, int att)
+        {
+            if (m_disconnected) return;
+            if (m_server == null || !m_server.ExtendedIQSpectrum) return;
+            sendTextFrame("step_attenuator_ex:" + (rx - 1) + "," + att + ";");
         }
         public void AGCModeChanged(int rx, AGCMode mode)
         {
@@ -2512,25 +2528,39 @@ namespace Thetis
 
         // ── TCI Extension handlers (_ex commands for ThetisLink) ────────────
 
-        // ctun_ex:rx,true/false;
-        private void handleCtunEx(string[] args)
+        // ddc_sample_rate_ex:rx,rate; — query/set DDC sample rate per receiver
+        private void handleDdcSampleRateEx(string[] args)
         {
-            if (args == null || args.Length < 1 || args.Length > 2) return;
+            if (args == null || args.Length < 1)
+            {
+                // No-args query: send both RX1 and RX2
+                sendTextFrame("ddc_sample_rate_ex:0," + console.ThreadSafeTCIAccessor.SampleRateRX1 + ";");
+                sendTextFrame("ddc_sample_rate_ex:1," + console.ThreadSafeTCIAccessor.SampleRateRX2 + ";");
+                return;
+            }
             if (!int.TryParse(args[0], out int rx)) return;
             if (rx < 0 || rx > 1) return;
 
             if (args.Length == 1)
             {
-                bool on = rx == 0 ? console.ThreadSafeTCIAccessor.ClickTuneDisplay
-                                  : console.ThreadSafeTCIAccessor.ClickTuneRX2Display;
-                sendTextFrame("ctun_ex:" + rx + "," + on.ToString().ToLower() + ";");
+                int rate = rx == 0 ? console.ThreadSafeTCIAccessor.SampleRateRX1
+                                   : console.ThreadSafeTCIAccessor.SampleRateRX2;
+                sendTextFrame("ddc_sample_rate_ex:" + rx + "," + rate + ";");
             }
             else
             {
-                if (!bool.TryParse(args[1], out bool enabled)) return;
-                if (rx == 0) console.ThreadSafeTCIAccessor.ClickTuneDisplay = enabled;
-                else console.ThreadSafeTCIAccessor.ClickTuneRX2Display = enabled;
+                if (!int.TryParse(args[1], out int rate)) return;
+                if (!(rate == 48000 || rate == 96000 || rate == 192000 || rate == 384000 || rate == 768000 || rate == 1536000)) return;
+                if (!console.IsSetupFormNull)
+                    console.SetupForm.SetHWSampleRate(rx + 1, rate);
             }
+        }
+
+        // ddc_sample_rates_ex; — query available DDC sample rates
+        private void sendDdcSampleRatesEx()
+        {
+            // Protocol 2 (ETH) rates — same as Thetis setup combo
+            sendTextFrame("ddc_sample_rates_ex:48000,96000,192000,384000,768000,1536000;");
         }
 
         // vfo_sync_ex:true/false;
@@ -2568,7 +2598,22 @@ namespace Thetis
             }
         }
 
-        // step_attenuator_ex:rx,db; (0-31)
+        private static int preampModeToDb(PreampMode mode)
+        {
+            switch (mode)
+            {
+                case PreampMode.HPSDR_ON: return 0;
+                case PreampMode.HPSDR_OFF: return -20;
+                case PreampMode.HPSDR_MINUS10: case PreampMode.SA_MINUS10: return -10;
+                case PreampMode.HPSDR_MINUS20: case PreampMode.SA_MINUS20: return -20;
+                case PreampMode.HPSDR_MINUS30: case PreampMode.SA_MINUS30: return -30;
+                case PreampMode.HPSDR_MINUS40: return -40;
+                case PreampMode.HPSDR_MINUS50: return -50;
+                default: return 0;
+            }
+        }
+
+        // step_attenuator_ex:rx,db; (negative dB from preamp mode)
         private void handleStepAttenuatorEx(string[] args)
         {
             if (args == null || args.Length < 1 || args.Length > 2) return;
@@ -2577,16 +2622,26 @@ namespace Thetis
 
             if (args.Length == 1)
             {
-                int att = rx == 0 ? console.ThreadSafeTCIAccessor.RX1AttenuatorData
-                                  : console.ThreadSafeTCIAccessor.RX2AttenuatorData;
-                sendTextFrame("step_attenuator_ex:" + rx + "," + att + ";");
+                PreampMode mode = rx == 0 ? console.ThreadSafeTCIAccessor.RX1PreampMode
+                                          : console.ThreadSafeTCIAccessor.RX2PreampMode;
+                int db = preampModeToDb(mode);
+                sendTextFrame("step_attenuator_ex:" + rx + "," + db + ";");
             }
             else
             {
                 if (!int.TryParse(args[1], out int db)) return;
-                db = Math.Max(0, Math.Min(31, db));
-                if (rx == 0) console.ThreadSafeTCIAccessor.RX1AttenuatorData = db;
-                else console.ThreadSafeTCIAccessor.RX2AttenuatorData = db;
+                // Convert negative dB to PreampMode
+                PreampMode mode;
+                switch (db)
+                {
+                    case 0: mode = PreampMode.HPSDR_ON; break;
+                    case -10: mode = PreampMode.SA_MINUS10; break;
+                    case -20: mode = PreampMode.SA_MINUS20; break;
+                    case -30: mode = PreampMode.SA_MINUS30; break;
+                    default: return; // unsupported value
+                }
+                if (rx == 0) console.ThreadSafeTCIAccessor.RX1PreampMode = mode;
+                else console.ThreadSafeTCIAccessor.RX2PreampMode = mode;
             }
         }
 
@@ -2654,7 +2709,7 @@ namespace Thetis
             else
             {
                 if (!int.TryParse(args[1], out int gainInt)) return;
-                gainInt = Math.Max(0, Math.Min(5000, gainInt));
+                gainInt = Math.Max(0, Math.Min(10000, gainInt));
                 decimal gain = gainInt / 1000m;
                 if (rx == 0) console.ThreadSafeTCIAccessor.CATDiversityRX1Gain = gain;
                 else console.ThreadSafeTCIAccessor.CATDiversityRX2Gain = gain;
@@ -2688,12 +2743,16 @@ namespace Thetis
             if (m_server != null && m_server.ExtendedIQSpectrum)
                 caps.Add("extended_iq_spectrum");
 
-            // ThetisLink extended controls (always available in this build)
-            caps.Add("ctun_ex");
-            caps.Add("vfo_sync_ex");
-            caps.Add("fm_deviation_ex");
-            caps.Add("step_attenuator_ex");
-            caps.Add("diversity_ex");
+            // ThetisLink extended controls (only when extensions enabled)
+            if (m_server != null && m_server.ExtendedIQSpectrum)
+            {
+                caps.Add("ctun_ex");
+                caps.Add("vfo_sync_ex");
+                caps.Add("fm_deviation_ex");
+                caps.Add("step_attenuator_ex");
+                caps.Add("diversity_ex");
+                caps.Add("ddc_sample_rate_ex");
+            }
 
             sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
         }
@@ -5299,32 +5358,32 @@ namespace Thetis
                     case "rx_balance":
                         handleRxBalance(args);
                         break;
-                    case "ctun_ex":
-                        handleCtunEx(args);
+                    case "ddc_sample_rate_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDdcSampleRateEx(args);
                         break;
                     case "vfo_sync_ex":
-                        handleVfoSyncEx(args);
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleVfoSyncEx(args);
                         break;
                     case "fm_deviation_ex":
-                        handleFmDeviationEx(args);
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleFmDeviationEx(args);
                         break;
                     case "step_attenuator_ex":
-                        handleStepAttenuatorEx(args);
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleStepAttenuatorEx(args);
                         break;
                     case "diversity_enable_ex":
-                        handleDiversityEnableEx(args);
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityEnableEx(args);
                         break;
                     case "diversity_ref_ex":
-                        handleDiversityRefEx(args);
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityRefEx(args);
                         break;
                     case "diversity_source_ex":
-                        handleDiversitySourceEx(args);
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversitySourceEx(args);
                         break;
                     case "diversity_gain_ex":
-                        handleDiversityGainEx(args);
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityGainEx(args);
                         break;
                     case "diversity_phase_ex":
-                        handleDiversityPhaseEx(args);
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityPhaseEx(args);
                         break;
                     case "agc_mode":
                         handleAgcMode(args);
@@ -5401,20 +5460,26 @@ namespace Thetis
                     case "spot_clear":
                         handleSpotClear();
                         break;
+                    case "ddc_sample_rate_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDdcSampleRateEx(null);
+                        break;
+                    case "ddc_sample_rates_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) sendDdcSampleRatesEx();
+                        break;
                     case "vfo_sync_ex":
-                        handleVfoSyncEx(new string[] { "" });
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleVfoSyncEx(new string[] { "" });
                         break;
                     case "diversity_enable_ex":
-                        handleDiversityEnableEx(new string[] { "" });
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityEnableEx(new string[] { "" });
                         break;
                     case "diversity_ref_ex":
-                        handleDiversityRefEx(new string[] { "" });
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityRefEx(new string[] { "" });
                         break;
                     case "diversity_source_ex":
-                        handleDiversitySourceEx(new string[] { "" });
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversitySourceEx(new string[] { "" });
                         break;
                     case "diversity_phase_ex":
-                        handleDiversityPhaseEx(new string[] { "" });
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityPhaseEx(new string[] { "" });
                         break;
                     case "tci_caps_ex":
                         sendCapabilities();
@@ -6592,6 +6657,9 @@ namespace Thetis
 
                     console.ThreadSafeTCIAccessor.RXGainChangedHandlers += OnRxAfGainChanged;
                     console.ThreadSafeTCIAccessor.CTUNChangedHandlers += OnCTUNChanged;
+                    console.ThreadSafeTCIAccessor.VFOSyncChangedHandlers += OnVFOSyncChanged;
+                    console.ThreadSafeTCIAccessor.AttenuatorDataChangedHandlers += OnAttenuatorChanged;
+                    console.ThreadSafeTCIAccessor.PreampModeChangedHandlers += OnPreampModeChanged;
                     console.ThreadSafeTCIAccessor.TXProfileChangedHandlers += OnTXProfileChanged;
                     console.ThreadSafeTCIAccessor.TXProfilesChangedHandlers += OnTXProfilesChanged;
 
@@ -6698,6 +6766,9 @@ namespace Thetis
 
                     console.ThreadSafeTCIAccessor.RXGainChangedHandlers -= OnRxAfGainChanged;
                     console.ThreadSafeTCIAccessor.CTUNChangedHandlers -= OnCTUNChanged;
+                    console.ThreadSafeTCIAccessor.VFOSyncChangedHandlers -= OnVFOSyncChanged;
+                    console.ThreadSafeTCIAccessor.AttenuatorDataChangedHandlers -= OnAttenuatorChanged;
+                    console.ThreadSafeTCIAccessor.PreampModeChangedHandlers -= OnPreampModeChanged;
                     console.ThreadSafeTCIAccessor.TXProfileChangedHandlers -= OnTXProfileChanged;
                     console.ThreadSafeTCIAccessor.TXProfilesChangedHandlers -= OnTXProfilesChanged;
 
@@ -7508,6 +7579,50 @@ namespace Thetis
                 foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
                 {
                     socketListener.CTUNChanged(rx, newCTUN);
+                }
+            }
+        }
+        private void OnVFOSyncChanged(int rx, bool oldState, bool newState)
+        {
+            lock (m_objLocker)
+            {
+                if (m_server == null || m_socketListenersList == null) return;
+                foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+                {
+                    socketListener.VFOSyncChanged(newState);
+                }
+            }
+        }
+        private void OnAttenuatorChanged(int rx, int oldAtt, int newAtt)
+        {
+            lock (m_objLocker)
+            {
+                if (m_server == null || m_socketListenersList == null) return;
+                foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+                {
+                    socketListener.AttenuatorChanged(rx, newAtt);
+                }
+            }
+        }
+        private void OnPreampModeChanged(int rx, PreampMode oldMode, PreampMode newMode)
+        {
+            lock (m_objLocker)
+            {
+                if (m_server == null || m_socketListenersList == null) return;
+                int db = 0;
+                switch (newMode)
+                {
+                    case PreampMode.HPSDR_ON: db = 0; break;
+                    case PreampMode.HPSDR_OFF: db = -20; break;
+                    case PreampMode.HPSDR_MINUS10: case PreampMode.SA_MINUS10: db = -10; break;
+                    case PreampMode.HPSDR_MINUS20: case PreampMode.SA_MINUS20: db = -20; break;
+                    case PreampMode.HPSDR_MINUS30: case PreampMode.SA_MINUS30: db = -30; break;
+                    case PreampMode.HPSDR_MINUS40: db = -40; break;
+                    case PreampMode.HPSDR_MINUS50: db = -50; break;
+                }
+                foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+                {
+                    socketListener.AttenuatorChanged(rx, db);
                 }
             }
         }
