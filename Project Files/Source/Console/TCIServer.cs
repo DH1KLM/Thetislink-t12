@@ -939,7 +939,8 @@ namespace Thetis
                     maxRate = m_hwSampleRate[i];
             }
 
-            return Math.Min(maxRate, 384000);
+            int cap = (m_server != null && m_server.ExtendedIQSpectrum) ? 1536000 : 384000;
+            return Math.Min(maxRate, cap);
         }
 
         private unsafe void destroyRxAudioResamplerState(TCIRxAudioResamplerState state)
@@ -2509,6 +2510,177 @@ namespace Thetis
 			Debug.Print("SENT INITIAL STATE");
 		}
 
+        // ── TCI Extension handlers (_ex commands for ThetisLink) ────────────
+
+        // ctun_ex:rx,true/false;
+        private void handleCtunEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 2) return;
+            if (!int.TryParse(args[0], out int rx)) return;
+            if (rx < 0 || rx > 1) return;
+
+            if (args.Length == 1)
+            {
+                bool on = rx == 0 ? console.ThreadSafeTCIAccessor.ClickTuneDisplay
+                                  : console.ThreadSafeTCIAccessor.ClickTuneRX2Display;
+                sendTextFrame("ctun_ex:" + rx + "," + on.ToString().ToLower() + ";");
+            }
+            else
+            {
+                if (!bool.TryParse(args[1], out bool enabled)) return;
+                if (rx == 0) console.ThreadSafeTCIAccessor.ClickTuneDisplay = enabled;
+                else console.ThreadSafeTCIAccessor.ClickTuneRX2Display = enabled;
+            }
+        }
+
+        // vfo_sync_ex:true/false;
+        private void handleVfoSyncEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 1) return;
+
+            if (args[0].Trim() == "")
+            {
+                sendTextFrame("vfo_sync_ex:" + console.ThreadSafeTCIAccessor.VFOSync.ToString().ToLower() + ";");
+            }
+            else
+            {
+                if (!bool.TryParse(args[0], out bool enabled)) return;
+                console.ThreadSafeTCIAccessor.VFOSync = enabled;
+            }
+        }
+
+        // fm_deviation_ex:rx,hz; (2500 or 5000)
+        private void handleFmDeviationEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 2) return;
+            if (!int.TryParse(args[0], out int rx)) return;
+            if (rx < 0 || rx > 1) return;
+
+            if (args.Length == 1)
+            {
+                sendTextFrame("fm_deviation_ex:" + rx + "," + console.ThreadSafeTCIAccessor.FMDeviation_Hz + ";");
+            }
+            else
+            {
+                if (!int.TryParse(args[1], out int hz)) return;
+                if (hz != 2500 && hz != 5000) return;
+                console.ThreadSafeTCIAccessor.FMDeviation_Hz = hz;
+            }
+        }
+
+        // step_attenuator_ex:rx,db; (0-31)
+        private void handleStepAttenuatorEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 2) return;
+            if (!int.TryParse(args[0], out int rx)) return;
+            if (rx < 0 || rx > 1) return;
+
+            if (args.Length == 1)
+            {
+                int att = rx == 0 ? console.ThreadSafeTCIAccessor.RX1AttenuatorData
+                                  : console.ThreadSafeTCIAccessor.RX2AttenuatorData;
+                sendTextFrame("step_attenuator_ex:" + rx + "," + att + ";");
+            }
+            else
+            {
+                if (!int.TryParse(args[1], out int db)) return;
+                db = Math.Max(0, Math.Min(31, db));
+                if (rx == 0) console.ThreadSafeTCIAccessor.RX1AttenuatorData = db;
+                else console.ThreadSafeTCIAccessor.RX2AttenuatorData = db;
+            }
+        }
+
+        // diversity_enable_ex:true/false;
+        private void handleDiversityEnableEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 1) return;
+
+            if (args[0].Trim() == "")
+            {
+                sendTextFrame("diversity_enable_ex:" + console.ThreadSafeTCIAccessor.CATDiversityEnable.ToString().ToLower() + ";");
+            }
+            else
+            {
+                if (!bool.TryParse(args[0], out bool enabled)) return;
+                console.ThreadSafeTCIAccessor.CATDiversityEnable = enabled;
+            }
+        }
+
+        // diversity_ref_ex:true/false; (true=RX1, false=RX2)
+        private void handleDiversityRefEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 1) return;
+
+            if (args[0].Trim() == "")
+            {
+                sendTextFrame("diversity_ref_ex:" + console.ThreadSafeTCIAccessor.CATDiversityRXRefSource.ToString().ToLower() + ";");
+            }
+            else
+            {
+                if (!bool.TryParse(args[0], out bool refRx1)) return;
+                console.ThreadSafeTCIAccessor.CATDiversityRXRefSource = refRx1;
+            }
+        }
+
+        // diversity_source_ex:channel; (0,1,...)
+        private void handleDiversitySourceEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 1) return;
+
+            if (args[0].Trim() == "")
+            {
+                sendTextFrame("diversity_source_ex:" + console.ThreadSafeTCIAccessor.CATDiversityRXSource + ";");
+            }
+            else
+            {
+                if (!int.TryParse(args[0], out int source)) return;
+                console.ThreadSafeTCIAccessor.CATDiversityRXSource = source;
+            }
+        }
+
+        // diversity_gain_ex:rx,gain; (rx: 0=RX1, 1=RX2, gain: 0-5000)
+        private void handleDiversityGainEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 2) return;
+            if (!int.TryParse(args[0], out int rx)) return;
+            if (rx < 0 || rx > 1) return;
+
+            if (args.Length == 1)
+            {
+                decimal gain = rx == 0 ? console.ThreadSafeTCIAccessor.CATDiversityRX1Gain
+                                       : console.ThreadSafeTCIAccessor.CATDiversityRX2Gain;
+                sendTextFrame("diversity_gain_ex:" + rx + "," + ((int)(gain * 1000m)) + ";");
+            }
+            else
+            {
+                if (!int.TryParse(args[1], out int gainInt)) return;
+                gainInt = Math.Max(0, Math.Min(5000, gainInt));
+                decimal gain = gainInt / 1000m;
+                if (rx == 0) console.ThreadSafeTCIAccessor.CATDiversityRX1Gain = gain;
+                else console.ThreadSafeTCIAccessor.CATDiversityRX2Gain = gain;
+            }
+        }
+
+        // diversity_phase_ex:phase; (-18000..+18000, in 0.01° units)
+        private void handleDiversityPhaseEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 1) return;
+
+            if (args[0].Trim() == "")
+            {
+                decimal phase = console.ThreadSafeTCIAccessor.CATDiversityPhase;
+                sendTextFrame("diversity_phase_ex:" + ((int)(phase * 100m)) + ";");
+            }
+            else
+            {
+                if (!int.TryParse(args[0], out int phaseInt)) return;
+                phaseInt = Math.Max(-18000, Math.Min(18000, phaseInt));
+                console.ThreadSafeTCIAccessor.CATDiversityPhase = phaseInt / 100m;
+            }
+        }
+
+        // ── Capability advertisement ───────────────────────────────────────
+
 		internal void sendCapabilities()
         {
             var caps = new List<string>();
@@ -2516,7 +2688,12 @@ namespace Thetis
             if (m_server != null && m_server.ExtendedIQSpectrum)
                 caps.Add("extended_iq_spectrum");
 
-            // Future capabilities go here
+            // ThetisLink extended controls (always available in this build)
+            caps.Add("ctun_ex");
+            caps.Add("vfo_sync_ex");
+            caps.Add("fm_deviation_ex");
+            caps.Add("step_attenuator_ex");
+            caps.Add("diversity_ex");
 
             sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
         }
@@ -5122,6 +5299,33 @@ namespace Thetis
                     case "rx_balance":
                         handleRxBalance(args);
                         break;
+                    case "ctun_ex":
+                        handleCtunEx(args);
+                        break;
+                    case "vfo_sync_ex":
+                        handleVfoSyncEx(args);
+                        break;
+                    case "fm_deviation_ex":
+                        handleFmDeviationEx(args);
+                        break;
+                    case "step_attenuator_ex":
+                        handleStepAttenuatorEx(args);
+                        break;
+                    case "diversity_enable_ex":
+                        handleDiversityEnableEx(args);
+                        break;
+                    case "diversity_ref_ex":
+                        handleDiversityRefEx(args);
+                        break;
+                    case "diversity_source_ex":
+                        handleDiversitySourceEx(args);
+                        break;
+                    case "diversity_gain_ex":
+                        handleDiversityGainEx(args);
+                        break;
+                    case "diversity_phase_ex":
+                        handleDiversityPhaseEx(args);
+                        break;
                     case "agc_mode":
                         handleAgcMode(args);
                         break;
@@ -5196,6 +5400,21 @@ namespace Thetis
                         break;
                     case "spot_clear":
                         handleSpotClear();
+                        break;
+                    case "vfo_sync_ex":
+                        handleVfoSyncEx(new string[] { "" });
+                        break;
+                    case "diversity_enable_ex":
+                        handleDiversityEnableEx(new string[] { "" });
+                        break;
+                    case "diversity_ref_ex":
+                        handleDiversityRefEx(new string[] { "" });
+                        break;
+                    case "diversity_source_ex":
+                        handleDiversitySourceEx(new string[] { "" });
+                        break;
+                    case "diversity_phase_ex":
+                        handleDiversityPhaseEx(new string[] { "" });
                         break;
                     case "tci_caps_ex":
                         sendCapabilities();
