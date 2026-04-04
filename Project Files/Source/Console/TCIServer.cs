@@ -1263,7 +1263,10 @@ namespace Thetis
         public void NbChanged(int rx, int newNb)
         {
             if (m_disconnected) return;
-            sendRxNbEnable(rx - 1, newNb == 1);
+            if (m_server != null && m_server.ExtendedIQSpectrum)
+                sendTextFrame("rx_nb_enable_ex:" + (rx - 1) + "," + (newNb > 0).ToString().ToLower() + "," + newNb + ";");
+            else
+                sendRxNbEnable(rx - 1, newNb > 0);
         }
         public void BinChanged(int rx, bool newState)
         {
@@ -3440,13 +3443,21 @@ namespace Thetis
         }
         private void handleRxNbEnable(string[] args)
         {
-            if (args == null || args.Length < 1 || args.Length > 2) return;
+            if (args == null || args.Length < 1 || args.Length > 3) return;
             if (!int.TryParse(args[0], out int rx)) return;
             if (rx < 0 || rx > 1) return;
 
             if (args.Length == 1)
             {
-                sendRxNbEnable(rx, console.ThreadSafeTCIAccessor.GetSelectedNB(rx + 1) == 1);
+                int nb = console.ThreadSafeTCIAccessor.GetSelectedNB(rx + 1);
+                sendRxNbEnable(rx, nb > 0);
+            }
+            else if (args.Length == 3)
+            {
+                // rx_nb_enable_ex:rx,bool,level — with NB level (0=off, 1=NB1, 2=NB2)
+                if (!int.TryParse(args[2], out int level)) return;
+                level = Math.Max(0, Math.Min(2, level));
+                console.ThreadSafeTCIAccessor.SetSelectedNB(rx + 1, level);
             }
             else
             {
@@ -5198,6 +5209,9 @@ namespace Thetis
                         break;
                     case "rx_nb_enable":
                         handleRxNbEnable(args);
+                        break;
+                    case "rx_nb_enable_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleRxNbEnable(args);
                         break;
                     case "rx_bin_enable":
                         handleRxBinEnable(args);
