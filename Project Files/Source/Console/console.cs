@@ -10732,8 +10732,10 @@ namespace Thetis
             get { return _diversity2; }
             set
             {
+                bool old = _diversity2;
                 _diversity2 = value;
                 AndromedaIndicatorCheck(EIndicatorActions.eINDiversityEnabled, false, _diversity2);
+                if (old != _diversity2) DiversityEnabledChangedHandlers?.Invoke(old, _diversity2);
                 if (_diversity2)
                 {
                     txtVFOAFreq_LostFocus(this, EventArgs.Empty);
@@ -44993,6 +44995,7 @@ namespace Thetis
         public delegate void DisplayModeChanged(int rx, DisplayMode old_mode, DisplayMode new_mode);
         public delegate void AGCModeChanged(int rx, AGCMode old_mode, AGCMode new_mode);
         public delegate void AGCAutoModeChanged(int rx, bool old_state, bool new_state);
+        public delegate void DiversityEnabledChanged(bool old_state, bool new_state);
         public delegate void GeneralSettingsChanged(int rx, OtherButtonId setting, bool old_state, bool new_state, Dictionary<OtherButtonId, bool> settings);
         public delegate void SQLChanged(int rx, SquelchState old_state, SquelchState new_state);
 
@@ -45150,6 +45153,7 @@ namespace Thetis
         public DisplayModeChanged DisplayModeChangedHandlers;
         public AGCModeChanged AGCModeChangedHandlers;
         public AGCAutoModeChanged AGCAutoModeChangedHandlers;
+        public DiversityEnabledChanged DiversityEnabledChangedHandlers;
         public GeneralSettingsChanged GeneralSettingsChangedHandlers;
         public SQLChanged SQLChangedHandlers;
 

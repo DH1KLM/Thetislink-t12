@@ -1145,6 +1145,12 @@ namespace Thetis
             if (m_server == null || !m_server.ExtendedIQSpectrum) return;
             sendTextFrame("vfo_sync_ex:" + enabled.ToString().ToLower() + ";");
         }
+        public void DiversityEnabledChanged(bool enabled)
+        {
+            if (m_disconnected) return;
+            if (m_server == null || !m_server.ExtendedIQSpectrum) return;
+            sendTextFrame("diversity_enable_ex:" + enabled.ToString().ToLower() + ";");
+        }
         public void AgcAutoChanged(int rx, bool enabled)
         {
             if (m_disconnected) return;
@@ -2572,6 +2578,261 @@ namespace Thetis
             sendTextFrame("ddc_sample_rates_ex:48000,96000,192000,384000,768000,1536000;");
         }
 
+        // diversity_autonull_ex:settle_ms|P:off1:off2:...|G:off1:off2:...|...
+        // Runs complete auto-null with step plan from client.
+        // First P line uses absolute angles, rest are relative to best.
+        // G offsets are in dB relative to current gain.
+        // Broadcasts progress and result via diversity_autonull_status_ex.
+        private void handleDiversityAutonullEx(string[] args)
+        {
+            if (args == null || args.Length < 1) return;
+            // Args come as comma-separated from TCI parser. Re-join and split on pipe.
+            string full = string.Join(",", args);
+            string[] parts = full.Split('|');
+            if (parts.Length < 2) return;
+            if (!int.TryParse(parts[0].Trim(), out int settleMs)) return;
+            settleMs = Math.Max(5, Math.Min(200, settleMs));
+
+            ensureDiversityForm();
+
+            string[] steps = parts.Skip(1).ToArray();
+
+            var stepList = new System.Collections.Generic.List<(bool isPhase, float[] offsets)>();
+            foreach (string step in steps)
+            {
+                string s = step.Trim();
+                if (s.Length < 2) continue;
+                bool isPhase = s[0] == 'P' || s[0] == 'p';
+                bool isGain = s[0] == 'G' || s[0] == 'g';
+                if (!isPhase && !isGain) continue;
+                var offsets = s.Substring(2).Split(':')
+                    .Select(v => { float.TryParse(v.Trim(), System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out float f); return f; })
+                    .Where(f => f != 0 || s.Contains("0"))
+                    .ToArray();
+                if (offsets.Length > 0)
+                    stepList.Add((isPhase, offsets));
+            }
+
+            if (stepList.Count == 0) return;
+
+            var listener = this;
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    float bestPhase = 0f;
+                    float bestGainDb = 0f;
+                    float bestSmeter = 999f;
+                    bool firstPhaseRound = true;
+
+                    // Read initial gain in dB
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                    {
+                        decimal gain = console.DiversityRXRef ?
+                            (console.diversityForm != null ? console.diversityForm.DiversityR2Gain : 1m) :
+                            (console.diversityForm != null ? console.diversityForm.DiversityGain : 1m);
+                        bestGainDb = (float)(20.0 * Math.Log10(Math.Max(0.01, (double)gain)));
+                    }));
+
+                    for (int round = 0; round < stepList.Count; round++)
+                    {
+                        var (isPhase, offsets) = stepList[round];
+                        float roundBestSmeter = 999f;
+                        float roundBestValue = 0f;
+
+                        foreach (float offset in offsets)
+                        {
+                            // Set phase or gain
+                            console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                            {
+                                if (isPhase)
+                                {
+                                    float phase = firstPhaseRound ? offset : bestPhase + offset;
+                                    // Wrap to -180..+180
+                                    while (phase > 180f) phase -= 360f;
+                                    while (phase < -180f) phase += 360f;
+                                    console.CATDiversityPhase = (decimal)phase;
+                                }
+                                else
+                                {
+                                    float gainDb = bestGainDb + offset;
+                                    decimal gain = (decimal)Math.Pow(10.0, gainDb / 20.0);
+                                    gain = Math.Max(0.01m, Math.Min(10m, gain));
+                                    if (console.diversityForm != null)
+                                    {
+                                        if (console.DiversityRXRef)
+                                            console.diversityForm.DiversityR2Gain = gain;
+                                        else
+                                            console.diversityForm.DiversityGain = gain;
+                                    }
+                                }
+                            }));
+
+                            System.Threading.Thread.Sleep(settleMs);
+
+                            // Read S-meter
+                            float dbm = -200f;
+                            console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                            {
+                                dbm = WDSP.CalculateRXMeter(0, 0, WDSP.MeterType.SIGNAL_STRENGTH);
+                            }));
+
+                            if (dbm < roundBestSmeter)
+                            {
+                                roundBestSmeter = dbm;
+                                roundBestValue = offset;
+                            }
+                        }
+
+                        // Apply best from this round
+                        if (isPhase)
+                        {
+                            bestPhase = firstPhaseRound ? roundBestValue : bestPhase + roundBestValue;
+                            while (bestPhase > 180f) bestPhase -= 360f;
+                            while (bestPhase < -180f) bestPhase += 360f;
+                            firstPhaseRound = false;
+                            console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                            {
+                                console.CATDiversityPhase = (decimal)bestPhase;
+                            }));
+                        }
+                        else
+                        {
+                            bestGainDb += roundBestValue;
+                            console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                            {
+                                decimal gain = (decimal)Math.Pow(10.0, bestGainDb / 20.0);
+                                gain = Math.Max(0.01m, Math.Min(10m, gain));
+                                if (console.diversityForm != null)
+                                {
+                                    if (console.DiversityRXRef)
+                                        console.diversityForm.DiversityR2Gain = gain;
+                                    else
+                                        console.diversityForm.DiversityGain = gain;
+                                }
+                            }));
+                        }
+
+                        if (roundBestSmeter < bestSmeter)
+                            bestSmeter = roundBestSmeter;
+
+                        // Broadcast progress
+                        listener.sendTextFrame("diversity_autonull_status_ex:progress," + (round + 1) + "," + stepList.Count +
+                            "," + bestPhase.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+                            "," + bestGainDb.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+                            "," + bestSmeter.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + ";");
+                    }
+
+                    // Final: measure with diversity off and on
+                    float offDbm = -200f, onDbm = -200f;
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = false; }));
+                    System.Threading.Thread.Sleep(500);
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                    {
+                        offDbm = WDSP.CalculateRXMeter(0, 0, WDSP.MeterType.SIGNAL_STRENGTH);
+                    }));
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = true; }));
+                    System.Threading.Thread.Sleep(500);
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                    {
+                        onDbm = WDSP.CalculateRXMeter(0, 0, WDSP.MeterType.SIGNAL_STRENGTH);
+                    }));
+
+                    float improvement = offDbm - onDbm;
+                    listener.sendTextFrame("diversity_autonull_status_ex:done," +
+                        bestPhase.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        bestGainDb.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        improvement.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        offDbm.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        onDbm.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + ";");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.Print("Diversity autonull error: " + ex.Message);
+                    listener.sendTextFrame("diversity_autonull_status_ex:error," + ex.Message.Replace(",", " ") + ";");
+                }
+            });
+        }
+
+        // diversity_sweep_ex:type,start,end,step,settle_ms;
+        // type: "phase" or "gain"
+        // Performs an internal sweep and returns results in one response.
+        private void handleDiversitySweepEx(string[] args)
+        {
+            if (args == null || args.Length < 5) return;
+            string sweepType = args[0].Trim().ToLower();
+            if (!float.TryParse(args[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float start)) return;
+            if (!float.TryParse(args[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float end)) return;
+            if (!float.TryParse(args[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float step)) return;
+            if (!int.TryParse(args[4], out int settleMs)) return;
+            if (step <= 0 || settleMs < 5 || settleMs > 500) return;
+
+            bool isPhase = sweepType == "phase";
+            ensureDiversityForm();
+
+            // Run sweep on background thread to not block TCI
+            var listener = this; // capture for thread
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    var results = new System.Collections.Generic.List<string>();
+                    float val = start;
+                    while ((step > 0 && val <= end) || (step < 0 && val >= end))
+                    {
+                        // Set phase or gain via console (must invoke on UI thread)
+                        float currentVal = val;
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            if (isPhase)
+                            {
+                                console.CATDiversityPhase = (decimal)currentVal;
+                            }
+                            else
+                            {
+                                // Gain value is linear, input is dB offset from current
+                                // For sweep, treat values as linear gain directly
+                                decimal gain = (decimal)Math.Pow(10.0, currentVal / 20.0);
+                                gain = Math.Max(0.01m, Math.Min(10m, gain));
+                                if (console.diversityForm != null)
+                                {
+                                    if (console.DiversityRXRef)
+                                        console.diversityForm.DiversityR2Gain = gain;
+                                    else
+                                        console.diversityForm.DiversityGain = gain;
+                                }
+                            }
+                        }));
+
+                        // Wait for DSP to settle
+                        System.Threading.Thread.Sleep(settleMs);
+
+                        // Read S-meter (RX1 combined signal)
+                        float dbm = -200f;
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            dbm = WDSP.CalculateRXMeter(0, 0, WDSP.MeterType.SIGNAL_STRENGTH);
+                        }));
+
+                        results.Add(currentVal.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+                            + ":" + dbm.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+
+                        val += step;
+                        // Safety: max 720 steps
+                        if (results.Count > 720) break;
+                    }
+
+                    string response = "diversity_sweep_result_ex:" + sweepType + "," + string.Join(",", results) + ";";
+                    listener.sendTextFrame(response);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.Print("Diversity sweep error: " + ex.Message);
+                }
+            });
+        }
+
         // vfo_swap_ex; — swap VFO A and B (freq, mode, filter, etc.)
         private void handleVfoSwapEx()
         {
@@ -2809,6 +3070,7 @@ namespace Thetis
                 caps.Add("ddc_sample_rate_ex");
                 caps.Add("agc_auto_ex");
                 caps.Add("vfo_swap_ex");
+                caps.Add("diversity_sweep_ex");
             }
 
             sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
@@ -5435,6 +5697,12 @@ namespace Thetis
                     case "agc_auto_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleAgcAutoEx(args);
                         break;
+                    case "diversity_sweep_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversitySweepEx(args);
+                        break;
+                    case "diversity_autonull_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityAutonullEx(args);
+                        break;
                     case "fm_deviation_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleFmDeviationEx(args);
                         break;
@@ -6738,6 +7006,7 @@ namespace Thetis
                     console.ThreadSafeTCIAccessor.RXGainChangedHandlers += OnRxAfGainChanged;
                     console.ThreadSafeTCIAccessor.CTUNChangedHandlers += OnCTUNChanged;
                     console.ThreadSafeTCIAccessor.AGCAutoModeChangedHandlers += OnAGCAutoChanged;
+                    console.ThreadSafeTCIAccessor.DiversityEnabledChangedHandlers += OnDiversityEnabledChanged;
                     console.ThreadSafeTCIAccessor.VFOSyncChangedHandlers += OnVFOSyncChanged;
                     console.ThreadSafeTCIAccessor.AttenuatorDataChangedHandlers += OnAttenuatorChanged;
                     console.ThreadSafeTCIAccessor.PreampModeChangedHandlers += OnPreampModeChanged;
@@ -6848,6 +7117,7 @@ namespace Thetis
                     console.ThreadSafeTCIAccessor.RXGainChangedHandlers -= OnRxAfGainChanged;
                     console.ThreadSafeTCIAccessor.CTUNChangedHandlers -= OnCTUNChanged;
                     console.ThreadSafeTCIAccessor.AGCAutoModeChangedHandlers -= OnAGCAutoChanged;
+                    console.ThreadSafeTCIAccessor.DiversityEnabledChangedHandlers -= OnDiversityEnabledChanged;
                     console.ThreadSafeTCIAccessor.VFOSyncChangedHandlers -= OnVFOSyncChanged;
                     console.ThreadSafeTCIAccessor.AttenuatorDataChangedHandlers -= OnAttenuatorChanged;
                     console.ThreadSafeTCIAccessor.PreampModeChangedHandlers -= OnPreampModeChanged;
@@ -7672,6 +7942,17 @@ namespace Thetis
                 foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
                 {
                     socketListener.AgcAutoChanged(rx, newState);
+                }
+            }
+        }
+        private void OnDiversityEnabledChanged(bool oldState, bool newState)
+        {
+            lock (m_objLocker)
+            {
+                if (m_server == null || m_socketListenersList == null) return;
+                foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+                {
+                    socketListener.DiversityEnabledChanged(newState);
                 }
             }
         }

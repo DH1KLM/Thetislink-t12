@@ -22,6 +22,10 @@ to the original v2.10.3.13 release.
 - [fix] step_attenuator_ex: consistent PreampMode semantics (negative dB)
 - [fix] NB change notification includes level (was bool-only)
 - [fix] all _ex handlers gated behind extensions checkbox
+- [add] diversity_autonull_ex: Thetis-side auto-null with client step plan
+- [add] diversity_sweep_ex: internal phase/gain sweep with result broadcast
+- [add] diversity state change push notification (DiversityEnabledChanged)
+- [fix] diversity phase wrap to -180..+180 in autonull sweep
 - [fix] build date display (pre-build event updated for current toolchain)
 
 ---
