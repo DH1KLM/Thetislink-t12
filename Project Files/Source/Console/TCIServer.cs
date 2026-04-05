@@ -1145,6 +1145,12 @@ namespace Thetis
             if (m_server == null || !m_server.ExtendedIQSpectrum) return;
             sendTextFrame("vfo_sync_ex:" + enabled.ToString().ToLower() + ";");
         }
+        public void AgcAutoChanged(int rx, bool enabled)
+        {
+            if (m_disconnected) return;
+            if (m_server == null || !m_server.ExtendedIQSpectrum) return;
+            sendTextFrame("agc_auto_ex:" + (rx - 1) + "," + enabled.ToString().ToLower() + ";");
+        }
         public void AttenuatorChanged(int rx, int att)
         {
             if (m_disconnected) return;
@@ -2566,6 +2572,33 @@ namespace Thetis
             sendTextFrame("ddc_sample_rates_ex:48000,96000,192000,384000,768000,1536000;");
         }
 
+        // vfo_swap_ex; — swap VFO A and B (freq, mode, filter, etc.)
+        private void handleVfoSwapEx()
+        {
+            console.ThreadSafeTCIAccessor.VFOSwap();
+        }
+
+        // agc_auto_ex:rx,true/false;
+        private void handleAgcAutoEx(string[] args)
+        {
+            if (args == null || args.Length < 1 || args.Length > 2) return;
+            if (!int.TryParse(args[0], out int rx)) return;
+            if (rx < 0 || rx > 1) return;
+
+            if (args.Length == 1)
+            {
+                bool on = rx == 0 ? console.ThreadSafeTCIAccessor.AutoAGCRX1
+                                  : console.ThreadSafeTCIAccessor.AutoAGCRX2;
+                sendTextFrame("agc_auto_ex:" + rx + "," + on.ToString().ToLower() + ";");
+            }
+            else
+            {
+                if (!bool.TryParse(args[1], out bool enabled)) return;
+                if (rx == 0) console.ThreadSafeTCIAccessor.AutoAGCRX1 = enabled;
+                else console.ThreadSafeTCIAccessor.AutoAGCRX2 = enabled;
+            }
+        }
+
         // vfo_sync_ex:true/false;
         private void handleVfoSyncEx(string[] args)
         {
@@ -2649,8 +2682,23 @@ namespace Thetis
         }
 
         // diversity_enable_ex:true/false;
+        /// Ensure the diversity form is created (needed for CAT diversity properties to work).
+        /// Creates the form without showing it if it doesn't exist yet.
+        private void ensureDiversityForm()
+        {
+            if (console.diversityForm == null || console.diversityForm.IsDisposed)
+            {
+                console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                {
+                    if (console.diversityForm == null || console.diversityForm.IsDisposed)
+                        console.diversityForm = new DiversityForm(console);
+                }));
+            }
+        }
+
         private void handleDiversityEnableEx(string[] args)
         {
+            ensureDiversityForm();
             if (args == null || args.Length < 1 || args.Length > 1) return;
 
             if (args[0].Trim() == "")
@@ -2667,6 +2715,7 @@ namespace Thetis
         // diversity_ref_ex:true/false; (true=RX1, false=RX2)
         private void handleDiversityRefEx(string[] args)
         {
+            ensureDiversityForm();
             if (args == null || args.Length < 1 || args.Length > 1) return;
 
             if (args[0].Trim() == "")
@@ -2683,6 +2732,7 @@ namespace Thetis
         // diversity_source_ex:channel; (0,1,...)
         private void handleDiversitySourceEx(string[] args)
         {
+            ensureDiversityForm();
             if (args == null || args.Length < 1 || args.Length > 1) return;
 
             if (args[0].Trim() == "")
@@ -2699,6 +2749,7 @@ namespace Thetis
         // diversity_gain_ex:rx,gain; (rx: 0=RX1, 1=RX2, gain: 0-5000)
         private void handleDiversityGainEx(string[] args)
         {
+            ensureDiversityForm();
             if (args == null || args.Length < 1 || args.Length > 2) return;
             if (!int.TryParse(args[0], out int rx)) return;
             if (rx < 0 || rx > 1) return;
@@ -2722,6 +2773,7 @@ namespace Thetis
         // diversity_phase_ex:phase; (-18000..+18000, in 0.01° units)
         private void handleDiversityPhaseEx(string[] args)
         {
+            ensureDiversityForm();
             if (args == null || args.Length < 1 || args.Length > 1) return;
 
             if (args[0].Trim() == "")
@@ -2755,6 +2807,8 @@ namespace Thetis
                 caps.Add("step_attenuator_ex");
                 caps.Add("diversity_ex");
                 caps.Add("ddc_sample_rate_ex");
+                caps.Add("agc_auto_ex");
+                caps.Add("vfo_swap_ex");
             }
 
             sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
@@ -5378,6 +5432,9 @@ namespace Thetis
                     case "vfo_sync_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleVfoSyncEx(args);
                         break;
+                    case "agc_auto_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleAgcAutoEx(args);
+                        break;
                     case "fm_deviation_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleFmDeviationEx(args);
                         break;
@@ -5479,6 +5536,15 @@ namespace Thetis
                         break;
                     case "ddc_sample_rates_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) sendDdcSampleRatesEx();
+                        break;
+                    case "vfo_swap_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleVfoSwapEx();
+                        break;
+                    case "agc_auto_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) {
+                            handleAgcAutoEx(new string[] { "0" }); // query RX1
+                            handleAgcAutoEx(new string[] { "1" }); // query RX2
+                        }
                         break;
                     case "vfo_sync_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleVfoSyncEx(new string[] { "" });
@@ -6671,6 +6737,7 @@ namespace Thetis
 
                     console.ThreadSafeTCIAccessor.RXGainChangedHandlers += OnRxAfGainChanged;
                     console.ThreadSafeTCIAccessor.CTUNChangedHandlers += OnCTUNChanged;
+                    console.ThreadSafeTCIAccessor.AGCAutoModeChangedHandlers += OnAGCAutoChanged;
                     console.ThreadSafeTCIAccessor.VFOSyncChangedHandlers += OnVFOSyncChanged;
                     console.ThreadSafeTCIAccessor.AttenuatorDataChangedHandlers += OnAttenuatorChanged;
                     console.ThreadSafeTCIAccessor.PreampModeChangedHandlers += OnPreampModeChanged;
@@ -6780,6 +6847,7 @@ namespace Thetis
 
                     console.ThreadSafeTCIAccessor.RXGainChangedHandlers -= OnRxAfGainChanged;
                     console.ThreadSafeTCIAccessor.CTUNChangedHandlers -= OnCTUNChanged;
+                    console.ThreadSafeTCIAccessor.AGCAutoModeChangedHandlers -= OnAGCAutoChanged;
                     console.ThreadSafeTCIAccessor.VFOSyncChangedHandlers -= OnVFOSyncChanged;
                     console.ThreadSafeTCIAccessor.AttenuatorDataChangedHandlers -= OnAttenuatorChanged;
                     console.ThreadSafeTCIAccessor.PreampModeChangedHandlers -= OnPreampModeChanged;
@@ -7593,6 +7661,17 @@ namespace Thetis
                 foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
                 {
                     socketListener.CTUNChanged(rx, newCTUN);
+                }
+            }
+        }
+        private void OnAGCAutoChanged(int rx, bool oldState, bool newState)
+        {
+            lock (m_objLocker)
+            {
+                if (m_server == null || m_socketListenersList == null) return;
+                foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+                {
+                    socketListener.AgcAutoChanged(rx, newState);
                 }
             }
         }

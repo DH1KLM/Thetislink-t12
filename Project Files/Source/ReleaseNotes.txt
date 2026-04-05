@@ -13,7 +13,10 @@ to the original v2.10.3.13 release.
 - [add] DDC sample rate query/set per receiver (ddc_sample_rate_ex)
 - [add] NB1/NB2 level via rx_nb_enable_ex (cycle off/NB1/NB2)
 - [add] diversity gain range extended to 10.0x (was 5.0x)
-- [add] push notifications for DDC sample rate changes
+- [add] diversity form lazy init (auto-created on first TCI diversity command)
+- [add] VFO A↔B native swap via vfo_swap_ex
+- [add] AGC Auto mode toggle via agc_auto_ex (RX1 + RX2)
+- [add] push notifications for DDC sample rate changes, AGC Auto mode
 - [fix] TCI settings (IQSwap, AlwaysStreamIQ, etc.) not applied after restart
 - [fix] iq_samplerate response capped at 384 kHz even when extended mode active
 - [fix] step_attenuator_ex: consistent PreampMode semantics (negative dB)
