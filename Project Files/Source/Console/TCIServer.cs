@@ -2591,7 +2591,7 @@ namespace Thetis
             string[] parts = full.Split('|');
             if (parts.Length < 2) return;
             if (!int.TryParse(parts[0].Trim(), out int settleMs)) return;
-            settleMs = Math.Max(5, Math.Min(200, settleMs));
+            settleMs = Math.Max(5, Math.Min(1000, settleMs));
 
             ensureDiversityForm();
 
@@ -2758,6 +2758,331 @@ namespace Thetis
         // diversity_sweep_ex:type,start,end,step,settle_ms;
         // type: "phase" or "gain"
         // Performs an internal sweep and returns results in one response.
+        // diversity_fastsweep_ex:type,start,end,step[,settle_ms];
+        // Continuous sweep — records timestamp+value+rssi.
+        // settle_ms=0: fast mode (SIGNAL_STRENGTH, no wait)
+        // settle_ms>0: avg mode (AVG_SIGNAL_STRENGTH, waits settle_ms per step)
+        // Returns: diversity_fastsweep_result_ex:type,t0:v0:r0,t1:v1:r1,...;
+        // diversity_smartnull_ex; — complete auto-null with runtime lag calibration
+        // All-in-one: lag cal → coarse sweep → fine sweep → gain opt → comparison
+        private void handleDiversitySmartNullEx(string[] args)
+        {
+            ensureDiversityForm();
+            // Parse parameters: coarseStep coarseSettle fineRange fineStep fineSettle gainRange gainStep gainSettle
+            float coarseStep = 5f; int coarseSettle = 50;
+            float fineRange = 15f, fineStep = 1f; int fineSettle = 50;
+            float gainRangeDb = 6f, gainStepDb = 0.5f; int gainSettle = 50;
+            if (args != null && args.Length >= 8)
+            {
+                float.TryParse(args[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out coarseStep);
+                if (float.TryParse(args[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float cs)) coarseSettle = (int)cs;
+                float.TryParse(args[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out fineRange);
+                float.TryParse(args[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out fineStep);
+                if (float.TryParse(args[4], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float fs)) fineSettle = (int)fs;
+                float.TryParse(args[5], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out gainRangeDb);
+                float.TryParse(args[6], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out gainStepDb);
+                if (float.TryParse(args[7], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float gs)) gainSettle = (int)gs;
+            }
+            coarseStep = Math.Max(0.5f, Math.Min(30f, coarseStep));
+            coarseSettle = Math.Max(10, Math.Min(1000, coarseSettle));
+            fineRange = Math.Max(1f, Math.Min(90f, fineRange));
+            fineStep = Math.Max(0.1f, Math.Min(10f, fineStep));
+            fineSettle = Math.Max(10, Math.Min(1000, fineSettle));
+            gainRangeDb = Math.Max(0.5f, Math.Min(20f, gainRangeDb));
+            gainStepDb = Math.Max(0.1f, Math.Min(3f, gainStepDb));
+            gainSettle = Math.Max(10, Math.Min(1000, gainSettle));
+
+            var listener = this;
+
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                    // Helper: set phase + broadcast to all TCI clients
+                    Action<float> setPhase = (p) =>
+                    {
+                        while (p > 180f) p -= 360f;
+                        while (p < -180f) p += 360f;
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            console.CATDiversityPhase = (decimal)p;
+                        }));
+                        if (m_server != null) m_server.BroadcastDiversityPhase((int)(p * 100f));
+                    };
+
+                    // Helper: set gain (linear) + broadcast to all TCI clients
+                    Action<float> setGain = (g) =>
+                    {
+                        g = Math.Max(0.01f, Math.Min(10f, g));
+                        bool isRx1Ref = false;
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            isRx1Ref = console.DiversityRXRef;
+                            if (console.diversityForm != null)
+                            {
+                                if (isRx1Ref)
+                                    console.diversityForm.DiversityR2Gain = (decimal)g;
+                                else
+                                    console.diversityForm.DiversityGain = (decimal)g;
+                            }
+                        }));
+                        // Broadcast both gains: ref=1.000, non-ref=g
+                        if (m_server != null)
+                        {
+                            int nonRefRx = isRx1Ref ? 1 : 0;
+                            int refRx = isRx1Ref ? 0 : 1;
+                            m_server.BroadcastDiversityGain(nonRefRx, (int)(g * 1000f));
+                            m_server.BroadcastDiversityGain(refRx, 1000);
+                        }
+                    };
+
+                    // Helper: read AVG meter (combined RX1 when diversity on)
+                    Func<float> readAvg = () =>
+                    {
+                        float dbm = -200f;
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            dbm = WDSP.CalculateRXMeter(0, 0, WDSP.MeterType.AVG_SIGNAL_STRENGTH);
+                        }));
+                        return dbm;
+                    };
+
+                    // ═══ STEP 0: Equalize RX1/RX2 gain ═══
+                    // Turn diversity off, read individual RX1/RX2 meters, calculate gain offset.
+                    listener.sendTextFrame("diversity_autonull_status_ex:progress,1,5,0,0,-200;");
+
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = false; }));
+                    System.Threading.Thread.Sleep(300);
+
+                    float rx1Dbm = -200f, rx2Dbm = -200f;
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                    {
+                        rx1Dbm = WDSP.CalculateRXMeter(0, 0, WDSP.MeterType.AVG_SIGNAL_STRENGTH);
+                        rx2Dbm = WDSP.CalculateRXMeter(2, 0, WDSP.MeterType.AVG_SIGNAL_STRENGTH);
+                    }));
+
+                    bool rxRef = false;
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { rxRef = console.DiversityRXRef; }));
+                    // rxRef=true → RX1 is reference, non-ref gain controls RX2
+                    float refDbm = rxRef ? rx1Dbm : rx2Dbm;
+                    float nonrefDbm = rxRef ? rx2Dbm : rx1Dbm;
+                    float diffDb = refDbm - nonrefDbm;
+                    float eqGainLin = (float)Math.Pow(10.0, diffDb / 20.0);
+                    eqGainLin = Math.Max(0.01f, Math.Min(10f, eqGainLin));
+
+                    System.Diagnostics.Debug.Print($"Equalize: RX1={rx1Dbm:F1}dBm RX2={rx2Dbm:F1}dBm ref={refDbm:F1} nonref={nonrefDbm:F1} diff={diffDb:F1}dB gain={eqGainLin:F3}");
+
+                    // Turn diversity back on with equalized gain
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = true; }));
+                    System.Threading.Thread.Sleep(200);
+                    setGain(eqGainLin);
+                    setPhase(0f);
+                    System.Threading.Thread.Sleep(100);
+
+                    // ═══ STEP 1: Coarse AVG sweep 360°+90° overlap ═══
+                    // Extra 90° overlap to let AVG filter settle at start
+                    int coarseSteps = (int)(450f / coarseStep);
+                    listener.sendTextFrame("diversity_autonull_status_ex:progress,2,5,0,0,-200;");
+
+                    float bestPhase = -180f;
+                    float bestSmeter = 999f;
+                    for (int i = 0; i <= coarseSteps; i++)
+                    {
+                        float p = -180f + i * coarseStep; // wraps via setPhase
+                        setPhase(p);
+                        System.Threading.Thread.Sleep(coarseSettle);
+                        float dbm = readAvg();
+                        if (dbm < bestSmeter)
+                        {
+                            bestSmeter = dbm;
+                            bestPhase = p;
+                        }
+                    }
+                    setPhase(bestPhase);
+
+                    System.Diagnostics.Debug.Print($"Coarse: best={bestPhase:F1}° smeter={bestSmeter:F1}dBm steps={coarseSteps} time={sw.ElapsedMilliseconds}ms");
+
+                    // ═══ STEP 2: Fine phase sweep around coarse null ═══
+                    listener.sendTextFrame($"diversity_autonull_status_ex:progress,3,5,{bestPhase:F1},0,{bestSmeter:F1};");
+
+                    float coarseNull = bestPhase;
+                    bestSmeter = 999f;
+                    for (float offset = -fineRange; offset <= fineRange; offset += fineStep)
+                    {
+                        float p = coarseNull + offset;
+                        setPhase(p);
+                        System.Threading.Thread.Sleep(fineSettle);
+                        float dbm = readAvg();
+                        if (dbm < bestSmeter)
+                        {
+                            bestSmeter = dbm;
+                            bestPhase = p;
+                        }
+                    }
+                    setPhase(bestPhase);
+
+                    System.Diagnostics.Debug.Print($"Fine phase: best={bestPhase:F1}° smeter={bestSmeter:F1}dBm time={sw.ElapsedMilliseconds}ms");
+
+                    // ═══ STEP 3: Gain optimization ═══
+                    listener.sendTextFrame($"diversity_autonull_status_ex:progress,4,5,{bestPhase:F1},0,{bestSmeter:F1};");
+
+                    float currentGainDb = 0f;
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                    {
+                        decimal gain = console.DiversityRXRef ?
+                            (console.diversityForm != null ? console.diversityForm.DiversityR2Gain : 1m) :
+                            (console.diversityForm != null ? console.diversityForm.DiversityGain : 1m);
+                        currentGainDb = (float)(20.0 * Math.Log10(Math.Max(0.01, (double)gain)));
+                    }));
+
+                    float bestGainDb = currentGainDb;
+                    for (float offsetDb = -gainRangeDb; offsetDb <= gainRangeDb; offsetDb += gainStepDb)
+                    {
+                        float gDb = currentGainDb + offsetDb;
+                        float gLin = (float)Math.Pow(10.0, gDb / 20.0);
+                        setGain(gLin);
+                        System.Threading.Thread.Sleep(gainSettle);
+                        float dbm = readAvg();
+                        if (dbm < bestSmeter)
+                        {
+                            bestSmeter = dbm;
+                            bestGainDb = gDb;
+                        }
+                    }
+                    float bestGainLin = (float)Math.Pow(10.0, bestGainDb / 20.0);
+                    setGain(bestGainLin);
+                    setPhase(bestPhase);
+
+                    System.Diagnostics.Debug.Print($"Gain opt: best={bestGainDb:F1}dB smeter={bestSmeter:F1}dBm time={sw.ElapsedMilliseconds}ms");
+
+                    // ═══ STEP 4: Comparison ═══
+                    listener.sendTextFrame($"diversity_autonull_status_ex:progress,5,5,{bestPhase:F1},{bestGainDb:F1},{bestSmeter:F1};");
+
+                    float offDbm = -200f, onDbm = -200f;
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = false; }));
+                    System.Threading.Thread.Sleep(500);
+                    offDbm = readAvg();
+
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = true; }));
+                    System.Threading.Thread.Sleep(500);
+                    onDbm = readAvg();
+
+                    float improvement = offDbm - onDbm;
+                    long totalMs = sw.ElapsedMilliseconds;
+
+                    System.Diagnostics.Debug.Print($"SmartNull done: phase={bestPhase:F1}° gain={bestGainDb:F1}dB improvement={improvement:F1}dB time={totalMs}ms");
+
+                    listener.sendTextFrame("diversity_autonull_status_ex:done," +
+                        bestPhase.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        bestGainDb.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        improvement.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        offDbm.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        onDbm.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + ";");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.Print("SmartNull error: " + ex.Message);
+                    listener.sendTextFrame("diversity_autonull_status_ex:error," + ex.Message.Replace(",", " ") + ";");
+                }
+            });
+        }
+
+        private void handleDiversityFastsweepEx(string[] args)
+        {
+            if (args == null || args.Length < 4) return;
+            string sweepType = args[0].Trim().ToLower();
+            if (!float.TryParse(args[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float start)) return;
+            if (!float.TryParse(args[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float end)) return;
+            if (!float.TryParse(args[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float step)) return;
+            if (step <= 0) return;
+            int settleMs = 0;
+            if (args.Length >= 5) int.TryParse(args[4], out settleMs);
+            settleMs = Math.Max(0, Math.Min(1000, settleMs));
+            int meterMode = 0; // 0=SIGNAL_STRENGTH, 1=AVG_SIGNAL_STRENGTH
+            if (args.Length >= 6) int.TryParse(args[5], out meterMode);
+            var meterType = meterMode == 1 ? WDSP.MeterType.AVG_SIGNAL_STRENGTH : WDSP.MeterType.SIGNAL_STRENGTH;
+
+            bool isPhase = sweepType == "phase";
+            ensureDiversityForm();
+
+            var listener = this;
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    // Forward sweep
+                    var fwdResults = new System.Collections.Generic.List<string>();
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                    Action<float, System.Collections.Generic.List<string>> doStep = (currentVal, resultList) =>
+                    {
+                        float dbm = -200f;
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            if (isPhase)
+                            {
+                                float phase = currentVal;
+                                while (phase > 180f) phase -= 360f;
+                                while (phase < -180f) phase += 360f;
+                                console.CATDiversityPhase = (decimal)phase;
+                            }
+                            else
+                            {
+                                decimal gain = (decimal)Math.Pow(10.0, currentVal / 20.0);
+                                gain = Math.Max(0.01m, Math.Min(10m, gain));
+                                if (console.diversityForm != null)
+                                {
+                                    if (console.DiversityRXRef)
+                                        console.diversityForm.DiversityR2Gain = gain;
+                                    else
+                                        console.diversityForm.DiversityGain = gain;
+                                }
+                            }
+                        }));
+                        if (settleMs > 0) System.Threading.Thread.Sleep(settleMs);
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            dbm = WDSP.CalculateRXMeter(0, 0, meterType);
+                        }));
+                        long ms = sw.ElapsedMilliseconds;
+                        resultList.Add(ms + ":" +
+                            currentVal.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + ":" +
+                            dbm.ToString("F1", System.Globalization.CultureInfo.InvariantCulture));
+                    };
+
+                    // Forward: start → end
+                    float val = start;
+                    while (val <= end && fwdResults.Count < 5000)
+                    {
+                        doStep(val, fwdResults);
+                        val += step;
+                    }
+
+                    // Backward: end → start
+                    var bwdResults = new System.Collections.Generic.List<string>();
+                    val = end;
+                    while (val >= start && bwdResults.Count < 5000)
+                    {
+                        doStep(val, bwdResults);
+                        val -= step;
+                    }
+
+                    sw.Stop();
+                    // Send both as separate results
+                    listener.sendTextFrame("diversity_fastsweep_result_ex:fwd_" + sweepType + "," +
+                        string.Join(",", fwdResults) + ";");
+                    listener.sendTextFrame("diversity_fastsweep_result_ex:bwd_" + sweepType + "," +
+                        string.Join(",", bwdResults) + ";");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.Print("Diversity fastsweep error: " + ex.Message);
+                }
+            });
+        }
+
         private void handleDiversitySweepEx(string[] args)
         {
             if (args == null || args.Length < 5) return;
@@ -3071,6 +3396,8 @@ namespace Thetis
                 caps.Add("agc_auto_ex");
                 caps.Add("vfo_swap_ex");
                 caps.Add("diversity_sweep_ex");
+                caps.Add("diversity_smartnull_ex");
+                caps.Add("diversity_fastsweep_ex");
             }
 
             sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
@@ -3377,7 +3704,7 @@ namespace Thetis
 				m_stopClient = true;
 			}
 		}
-		private void sendTextFrame(string sMsg)
+		internal void sendTextFrame(string sMsg)
 		{
 			try
 			{
@@ -5700,6 +6027,12 @@ namespace Thetis
                     case "diversity_sweep_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversitySweepEx(args);
                         break;
+                    case "diversity_fastsweep_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityFastsweepEx(args);
+                        break;
+                    case "diversity_smartnull_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversitySmartNullEx(args);
+                        break;
                     case "diversity_autonull_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityAutonullEx(args);
                         break;
@@ -5807,6 +6140,9 @@ namespace Thetis
                         break;
                     case "vfo_swap_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleVfoSwapEx();
+                        break;
+                    case "diversity_smartnull_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversitySmartNullEx(null);
                         break;
                     case "agc_auto_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) {
@@ -7953,6 +8289,30 @@ namespace Thetis
                 foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
                 {
                     socketListener.DiversityEnabledChanged(newState);
+                }
+            }
+        }
+        internal void BroadcastDiversityPhase(int phaseHundredths)
+        {
+            lock (m_objLocker)
+            {
+                if (m_server == null || m_socketListenersList == null) return;
+                string frame = "diversity_phase_ex:" + phaseHundredths + ";";
+                foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+                {
+                    socketListener.sendTextFrame(frame);
+                }
+            }
+        }
+        internal void BroadcastDiversityGain(int rx, int gainMillilinear)
+        {
+            lock (m_objLocker)
+            {
+                if (m_server == null || m_socketListenersList == null) return;
+                string frame = "diversity_gain_ex:" + rx + "," + gainMillilinear + ";";
+                foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+                {
+                    socketListener.sendTextFrame(frame);
                 }
             }
         }

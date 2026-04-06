@@ -27,6 +27,12 @@ to the original v2.10.3.13 release.
 - [add] diversity state change push notification (DiversityEnabledChanged)
 - [fix] diversity phase wrap to -180..+180 in autonull sweep
 - [fix] build date display (pre-build event updated for current toolchain)
+- [add] diversity_smartnull_ex: Thetis-side Smart auto-null algorithm
+        (equalize → 450° coarse AVG sweep → fine phase → gain optimisation → comparison)
+- [add] BroadcastDiversityPhase/Gain: real-time TCI push during sweep
+- [add] sendTextFrame promoted to internal for broadcast access
+- [fix] smartnull settle: uses AVG_SIGNAL_STRENGTH only (no noisy instant meter)
+- [fix] smartnull equalize: reads RX1/RX2 meters individually with diversity off
 
 ---
 
