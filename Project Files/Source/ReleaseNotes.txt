@@ -34,6 +34,13 @@ to the original v2.10.3.13 release.
 - [fix] smartnull settle: uses AVG_SIGNAL_STRENGTH only (no noisy instant meter)
 - [fix] smartnull equalize: reads RX1/RX2 meters individually with diversity off
 
+Known issue (TL-26, upstream Thetis/WDSP):
+- [bug] rx_bin_enable (BIN mode) affects TX audio quality despite being RX-only in code.
+        WDSP SetRXAPanelBinaural() only modifies rxa[].panel.copy, not txa[], yet TX audio
+        becomes distorted (robotic voice) when BIN is enabled. Observed in TL-26. Root cause
+        unknown — possibly shared state in WDSP patchpanel or ChannelMaster audio routing.
+        Workaround: ThetisLink v0.6.5+ auto-disables BIN during TX and re-enables on RX.
+
 ---
 
 IMPORTANT : if you are updating from a pre v2.10.3.13 version then make a backup of your database before using this version. If you have an existing database that pre-dates v2.10.3.13 then Thetis will pop up a message asking you to restart whilst holding down the CTRL key. Please follow the onscreen instructions.
