@@ -2989,6 +2989,218 @@ namespace Thetis
             });
         }
 
+        private void handleDiversityUltraNullEx(string[] args)
+        {
+            ensureDiversityForm();
+            // Parse parameters (same as smartnull: coarseStep coarseSettle fineRange fineStep fineSettle gainRange gainStep gainSettle)
+            float coarseStep = 1f; int coarseSettle = 0;
+            float fineRange = 15f, fineStep = 1f; int fineSettle = 50;
+            float gainRangeDb = 6f, gainStepDb = 0.5f; int gainSettle = 50;
+            if (args != null && args.Length >= 8)
+            {
+                float.TryParse(args[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out coarseStep);
+                if (float.TryParse(args[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float cs)) coarseSettle = (int)cs;
+                float.TryParse(args[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out fineRange);
+                float.TryParse(args[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out fineStep);
+                if (float.TryParse(args[4], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float fs)) fineSettle = (int)fs;
+                float.TryParse(args[5], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out gainRangeDb);
+                float.TryParse(args[6], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out gainStepDb);
+                if (float.TryParse(args[7], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float gs)) gainSettle = (int)gs;
+            }
+            // Ultra: 1° continuous, no settle
+            coarseStep = 1.0f;
+            fineRange = Math.Max(1f, Math.Min(90f, fineRange));
+            fineStep = Math.Max(0.1f, Math.Min(10f, fineStep));
+            fineSettle = Math.Max(10, Math.Min(1000, fineSettle));
+            gainRangeDb = Math.Max(0.5f, Math.Min(20f, gainRangeDb));
+            gainStepDb = Math.Max(0.1f, Math.Min(3f, gainStepDb));
+            gainSettle = Math.Max(10, Math.Min(1000, gainSettle));
+
+            var listener = this;
+
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                    // Helpers (same as smartnull)
+                    Action<float> setPhase = (p) =>
+                    {
+                        while (p > 180f) p -= 360f;
+                        while (p < -180f) p += 360f;
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            console.CATDiversityPhase = (decimal)p;
+                        }));
+                        if (m_server != null) m_server.BroadcastDiversityPhase((int)(p * 100f));
+                    };
+
+                    Action<float> setGain = (g) =>
+                    {
+                        g = Math.Max(0.01f, Math.Min(10f, g));
+                        bool isRx1Ref = false;
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            isRx1Ref = console.DiversityRXRef;
+                            if (console.diversityForm != null)
+                            {
+                                if (isRx1Ref)
+                                    console.diversityForm.DiversityR2Gain = (decimal)g;
+                                else
+                                    console.diversityForm.DiversityGain = (decimal)g;
+                            }
+                        }));
+                        if (m_server != null)
+                        {
+                            int nonRefRx = isRx1Ref ? 1 : 0;
+                            int refRx = isRx1Ref ? 0 : 1;
+                            m_server.BroadcastDiversityGain(nonRefRx, (int)(g * 1000f));
+                            m_server.BroadcastDiversityGain(refRx, 1000);
+                        }
+                    };
+
+                    Func<float> readAvg = () =>
+                    {
+                        float dbm = -200f;
+                        console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                        {
+                            dbm = WDSP.CalculateRXMeter(0, 0, WDSP.MeterType.AVG_SIGNAL_STRENGTH);
+                        }));
+                        return dbm;
+                    };
+
+                    // ═══ STEP 0: Equalize ═══
+                    listener.sendTextFrame("diversity_autonull_status_ex:progress,1,4,0,0,-200;");
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = false; }));
+                    System.Threading.Thread.Sleep(100);
+                    float rx1Dbm = -200f, rx2Dbm = -200f;
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                    {
+                        rx1Dbm = WDSP.CalculateRXMeter(0, 0, WDSP.MeterType.AVG_SIGNAL_STRENGTH);
+                        rx2Dbm = WDSP.CalculateRXMeter(2, 0, WDSP.MeterType.AVG_SIGNAL_STRENGTH);
+                    }));
+                    bool rxRef = false;
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { rxRef = console.DiversityRXRef; }));
+                    float refDbm = rxRef ? rx1Dbm : rx2Dbm;
+                    float nonrefDbm = rxRef ? rx2Dbm : rx1Dbm;
+                    float diffDb = refDbm - nonrefDbm;
+                    float eqGainLin = (float)Math.Pow(10.0, diffDb / 20.0);
+                    eqGainLin = Math.Max(0.01f, Math.Min(10f, eqGainLin));
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = true; }));
+                    System.Threading.Thread.Sleep(100);
+                    setGain(eqGainLin);
+                    setPhase(0f);
+
+                    // ═══ STEP 1: Continuous forward+backward AVG sweep 450° (no settle!) ═══
+                    listener.sendTextFrame("diversity_autonull_status_ex:progress,2,4,0,0,-200;");
+                    int totalSteps = (int)(450f / coarseStep);
+                    float fwdBestPhase = -180f;
+                    float fwdBestDbm = 999f;
+                    for (int i = 0; i <= totalSteps; i++)
+                    {
+                        float p = -180f + i * coarseStep;
+                        setPhase(p);
+                        float dbm = readAvg();
+                        if (dbm < fwdBestDbm)
+                        {
+                            fwdBestDbm = dbm;
+                            fwdBestPhase = p;
+                            while (fwdBestPhase > 180f) fwdBestPhase -= 360f;
+                            while (fwdBestPhase < -180f) fwdBestPhase += 360f;
+                        }
+                    }
+
+                    // ═══ STEP 1b: Continuous backward AVG sweep 450° ═══
+                    float bwdBestPhase = 180f;
+                    float bwdBestDbm = 999f;
+                    for (int i = 0; i <= totalSteps; i++)
+                    {
+                        float p = 180f - i * coarseStep;
+                        setPhase(p);
+                        float dbm = readAvg();
+                        if (dbm < bwdBestDbm)
+                        {
+                            bwdBestDbm = dbm;
+                            bwdBestPhase = p;
+                            while (bwdBestPhase > 180f) bwdBestPhase -= 360f;
+                            while (bwdBestPhase < -180f) bwdBestPhase += 360f;
+                        }
+                    }
+
+                    // True null = average of forward and backward minima (cancels AVG lag)
+                    float trueNull = (fwdBestPhase + bwdBestPhase) / 2f;
+                    // Handle wrap-around: if the two are on opposite sides of ±180°
+                    if (Math.Abs(fwdBestPhase - bwdBestPhase) > 180f)
+                    {
+                        trueNull = ((fwdBestPhase + bwdBestPhase + 360f) / 2f);
+                        if (trueNull > 180f) trueNull -= 360f;
+                    }
+                    setPhase(trueNull);
+                    System.Threading.Thread.Sleep(400); // settle at true null before gain optimization
+
+                    System.Diagnostics.Debug.Print($"Ultra coarse: fwd={fwdBestPhase:F1}° bwd={bwdBestPhase:F1}° true={trueNull:F1}° time={sw.ElapsedMilliseconds}ms");
+
+                    float bestPhase = trueNull;
+                    float bestSmeter = readAvg(); // actual level at true null
+
+                    // ═══ STEP 3: Gain optimization ═══
+                    listener.sendTextFrame($"diversity_autonull_status_ex:progress,3,4,{bestPhase:F1},0,{bestSmeter:F1};");
+                    float currentGainDb = 0f;
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+                    {
+                        decimal gain = console.DiversityRXRef ?
+                            (console.diversityForm != null ? console.diversityForm.DiversityR2Gain : 1m) :
+                            (console.diversityForm != null ? console.diversityForm.DiversityGain : 1m);
+                        currentGainDb = (float)(20.0 * Math.Log10(Math.Max(0.01, (double)gain)));
+                    }));
+                    float bestGainDb = currentGainDb;
+                    for (float offsetDb = -gainRangeDb; offsetDb <= gainRangeDb; offsetDb += gainStepDb)
+                    {
+                        float gDb = currentGainDb + offsetDb;
+                        float gLin = (float)Math.Pow(10.0, gDb / 20.0);
+                        setGain(gLin);
+                        System.Threading.Thread.Sleep(gainSettle);
+                        float dbm = readAvg();
+                        if (dbm < bestSmeter)
+                        {
+                            bestSmeter = dbm;
+                            bestGainDb = gDb;
+                        }
+                    }
+                    float bestGainLin = (float)Math.Pow(10.0, bestGainDb / 20.0);
+                    setGain(bestGainLin);
+                    setPhase(bestPhase);
+
+                    // ═══ STEP 4: Comparison ═══
+                    // Diversity is already ON after gain optimization — settle for AVG to reach nulled level
+                    listener.sendTextFrame($"diversity_autonull_status_ex:progress,4,4,{bestPhase:F1},{bestGainDb:F1},{bestSmeter:F1};");
+                    System.Threading.Thread.Sleep(500);
+                    float onDbm = readAvg();
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = false; }));
+                    System.Threading.Thread.Sleep(500);
+                    float offDbm = readAvg();
+                    console.Invoke(new System.Windows.Forms.MethodInvoker(() => { console.Diversity2 = true; }));
+
+                    float improvement = offDbm - onDbm;
+                    long totalMs = sw.ElapsedMilliseconds;
+                    System.Diagnostics.Debug.Print($"UltraNull done: phase={bestPhase:F1}° gain={bestGainDb:F1}dB improvement={improvement:F1}dB time={totalMs}ms");
+
+                    listener.sendTextFrame("diversity_autonull_status_ex:done," +
+                        bestPhase.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        bestGainDb.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        improvement.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        offDbm.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," +
+                        onDbm.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + ";");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.Print("UltraNull error: " + ex.Message);
+                    listener.sendTextFrame("diversity_autonull_status_ex:error," + ex.Message.Replace(",", " ") + ";");
+                }
+            });
+        }
+
         private void handleDiversityFastsweepEx(string[] args)
         {
             if (args == null || args.Length < 4) return;
@@ -6032,6 +6244,9 @@ namespace Thetis
                         break;
                     case "diversity_smartnull_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversitySmartNullEx(args);
+                        break;
+                    case "diversity_ultranull_ex":
+                        if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityUltraNullEx(args);
                         break;
                     case "diversity_autonull_ex":
                         if (m_server != null && m_server.ExtendedIQSpectrum) handleDiversityAutonullEx(args);
