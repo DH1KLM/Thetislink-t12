@@ -33,6 +33,9 @@ to the original v2.10.3.13 release.
 - [add] sendTextFrame promoted to internal for broadcast access
 - [fix] smartnull settle: uses AVG_SIGNAL_STRENGTH only (no noisy instant meter)
 - [fix] smartnull equalize: reads RX1/RX2 meters individually with diversity off
+- [add] diversity_fastsweep_ex: Ultra auto-null algorithm
+        (continuous forward/backward AVG sweep without settle time, true null via
+        lag compensation, 1 degree steps, ~5 seconds)
 
 Known issue (TL-26, upstream Thetis/WDSP):
 - [bug] rx_bin_enable (BIN mode) affects TX audio quality despite being RX-only in code.

@@ -1,5 +1,21 @@
 See LICENSE and LICENSE-DUAL-LICENSING for licensing details.
 
+# PA3GHM ThetisLink Fork (TL-26)
+
+This is a fork of Thetis with extensions for [ThetisLink](https://github.com/cjenschede/sdr-remote) remote control. Branch: `thetislink-tci-extended`.
+
+All extensions are gated behind the "ThetisLink extensions" checkbox in Setup > Network > IQ Stream. With extensions disabled, Thetis behaves identically to the original v2.10.3.13 release.
+
+See `ReleaseNotes.txt` for a full list of changes.
+
+## Disclaimer
+
+This software controls radio transmitters. Use at your own risk. The author is not responsible for any damage to equipment, interference, or regulatory violations resulting from the use of this software. Verify all safety features (PTT timeout, power limits) before transmitting.
+
+This software is provided "as is" without warranty of any kind, as stated in the GPLv2 license.
+
+---
+
 # This project is now archived - 2nd April 2026
 
 This fork of the original Thetis, which I started tinkering with in 2019, has now been archived. I will not be performing maintenance or adding features to it for the foreseeable future. Whilst I may return to it from time to time for minor fixes and/or if I develop something for personal use that I feel may also benefit others, active development has stopped.
