@@ -1,3 +1,9 @@
+> **Notice — Under compliance review.** This repository is archived pending
+> licence review. Please do not redistribute releases from this snapshot.
+> A compliance-reviewed successor will be announced in a new repository.
+
+---
+
 See LICENSE and LICENSE-DUAL-LICENSING for licensing details.
 
 # This project is now archived - 2nd April 2026
