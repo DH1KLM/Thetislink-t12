@@ -2668,6 +2668,23 @@ namespace Thetis
 			Debug.Print("SENT INITIAL STATE");
 		}
 
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+		// Capability-broadcast for TL2-1 fork. Sends `tci_caps_ex:cap1,cap2,...;` text-frame
+		// when ThetisLink-extensions checkbox is on; no-op when off (stock-mode).
+		// Initial caps list is empty in this skeleton patch — opvolger-patches will populate
+		// with `_ex` command names as they are implemented (diversity, vfo_sync, etc).
+		private void sendCapabilities()
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled)
+				return;
+
+			var caps = new System.Collections.Generic.List<string>();
+			// (capabilities populated by opvolger-patches)
+
+			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
+		}
+		// [ThetisLink TL2-1] END
+
 		private void sendInitialisationData()
         {
 			string sProtocol; //MW0LGE_22 emulate ee3 protocol
@@ -2703,6 +2720,12 @@ namespace Thetis
 			sendTextFrame("modulations_list:" + ("am,sam,dsb,lsb,usb,nfm,fm,digl,digu," + sCW).ToUpper() + ";"); // MW0LGE_22b modulations are upper in sun, so replicate
 
 			sendInitialRadioState();
+
+			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+			// Broadcast capability-list before "ready;" so TL clients can mode-detect during init-burst.
+			// No-op when ThetisLink-extensions checkbox is off (sendCapabilities self-gates).
+			sendCapabilities();
+			// [ThetisLink TL2-1] END
 
 			sendTextFrame("ready;");
 
@@ -5608,6 +5631,14 @@ namespace Thetis
                         string[] tmpArgs = new string[0];
                         handleTXProfile(tmpArgs); // bespoke thetis cmd to select tx profile
                         break;
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+                    // Client query for capability-list. sendCapabilities() self-gates on the
+                    // ThetisLink-extensions checkbox, so when the vink is off this case becomes
+                    // a no-op (matching stock behaviour where the command is unrecognised).
+                    case "tci_caps_ex":
+                        sendCapabilities();
+                        break;
+                    // [ThetisLink TL2-1] END
                 }
             }
         }
