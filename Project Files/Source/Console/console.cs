@@ -53,6 +53,14 @@
 // Nothing further added by him after this date, and his repo is now in archive https://github.com/ramdor/Thetis
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+//================================================================================================//
+// SPDX-License-Identifier: GPL-2.0-or-later                                                       //
+// ThetisLink TL2-1 fork modifications by PA3GHM (cjenschede), starting 2026-05-06.                //
+// All ThetisLink modifications are gated behind the "ThetisLink extensions" checkbox in           //
+// Setup > Network > IQ Stream. With the checkbox off, behavior is identical to upstream v2.10.3.15.//
+// See NOTICE.md and ATTRIBUTION.md in the repository root for fork details.                       //
+//================================================================================================//
+
 // Migrated to VS2026 - 18/12/25 MW0LGE v2.10.3.12
 
 using Midi2Cat.Data; //-W2PA Necessary for Behringer MIDI changes
@@ -14965,6 +14973,18 @@ namespace Thetis
                      (BreakInEnabledState == CheckState.Indeterminate)) chkQSK_CheckStateChanged(this, EventArgs.Empty);
             }
         }
+
+        // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+        // Master switch for ThetisLink TL2-1 fork extensions. Default OFF → behaves
+        // identically to upstream v2.10.3.15. When ON, additional `_ex` TCI commands
+        // and push notifications become available to ThetisLink clients.
+        private bool thetislink_extensions_enabled = false;
+        public bool ThetisLinkExtensionsEnabled
+        {
+            get { return thetislink_extensions_enabled; }
+            set { thetislink_extensions_enabled = value; }
+        }
+        // [ThetisLink TL2-1] END
 
         private void UpdateTRXAnt()
         {

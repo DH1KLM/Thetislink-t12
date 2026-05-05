@@ -1,4 +1,16 @@
-﻿namespace Thetis
+﻿//================================================================================================//
+// SPDX-License-Identifier: GPL-2.0-or-later                                                       //
+// ThetisLink TL2-1 fork modifications by PA3GHM (cjenschede), starting 2026-05-06.                //
+// All ThetisLink modifications are gated behind the "ThetisLink extensions" checkbox in           //
+// Setup > Network > IQ Stream. With the checkbox off, behavior is identical to upstream v2.10.3.15.//
+// See NOTICE.md and ATTRIBUTION.md in the repository root for fork details.                       //
+//                                                                                                 //
+// NOTE: this is a Windows-Forms-Designer-generated file. The TL2-1 additions below are flagged    //
+// with `// [ThetisLink TL2-1] BEGIN/END` markers so they can be re-applied if the designer        //
+// regenerates this file. Do NOT regenerate without preserving those markers.                      //
+//================================================================================================//
+
+namespace Thetis
 {
     using System.Windows.Forms;
 
@@ -3625,6 +3637,10 @@
             this.comboCATstopbits = new System.Windows.Forms.ComboBoxTS();
             this.tpTCITCPIPN1MM = new System.Windows.Forms.TabPage();
             this.grpTCIServer = new System.Windows.Forms.GroupBoxTS();
+            // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+            this.grpThetisLinkExtensions = new System.Windows.Forms.GroupBoxTS();
+            this.chkThetisLinkExtensions = new System.Windows.Forms.CheckBoxTS();
+            // [ThetisLink TL2-1] END
             this.tbTCISpotBackPanel_alpha = new System.Windows.Forms.TrackBarTS();
             this.labelTS662 = new System.Windows.Forms.LabelTS();
             this.chkTCI_spot_flags = new System.Windows.Forms.CheckBoxTS();
@@ -5401,6 +5417,7 @@
             this.grpCatControlBox.SuspendLayout();
             this.tpTCITCPIPN1MM.SuspendLayout();
             this.grpTCIServer.SuspendLayout();
+            this.grpThetisLinkExtensions.SuspendLayout(); // [ThetisLink TL2-1]
             ((System.ComponentModel.ISupportInitialize)(this.tbTCISpotBackPanel_alpha)).BeginInit();
             this.panelTS13.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.udTCISpotLifetime)).BeginInit();
@@ -57337,7 +57354,7 @@
             this.tcCAT.Location = new System.Drawing.Point(0, 3);
             this.tcCAT.Name = "tcCAT";
             this.tcCAT.SelectedIndex = 0;
-            this.tcCAT.Size = new System.Drawing.Size(732, 433);
+            this.tcCAT.Size = new System.Drawing.Size(732, 480); // [ThetisLink TL2-1] +47px voor extensions-groupbox onder IQ Stream
             this.tcCAT.TabIndex = 0;
             this.tcCAT.SelectedIndexChanged += new System.EventHandler(this.tcCAT_SelectedIndexChanged);
             // 
@@ -58097,10 +58114,11 @@
             this.tpTCITCPIPN1MM.Controls.Add(this.grpTCPIPcatServer);
             this.tpTCITCPIPN1MM.Controls.Add(this.groupBoxTS16);
             this.tpTCITCPIPN1MM.Controls.Add(this.groupBoxTS69);
+            this.tpTCITCPIPN1MM.Controls.Add(this.grpThetisLinkExtensions); // [ThetisLink TL2-1]
             this.tpTCITCPIPN1MM.Location = new System.Drawing.Point(4, 22);
             this.tpTCITCPIPN1MM.Name = "tpTCITCPIPN1MM";
             this.tpTCITCPIPN1MM.Padding = new System.Windows.Forms.Padding(3);
-            this.tpTCITCPIPN1MM.Size = new System.Drawing.Size(724, 407);
+            this.tpTCITCPIPN1MM.Size = new System.Drawing.Size(724, 454); // [ThetisLink TL2-1] +47px voor extensions-groupbox
             this.tpTCITCPIPN1MM.TabIndex = 3;
             this.tpTCITCPIPN1MM.Text = "Network";
             // 
@@ -59152,9 +59170,38 @@
         " option to always stream it.");
             this.chkTCIAlwaysStreamIQ.UseVisualStyleBackColor = true;
             this.chkTCIAlwaysStreamIQ.CheckedChanged += new System.EventHandler(this.chkTCIAlwaysStreamIQ_CheckedChanged);
-            // 
+            //
+            // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+            // grpThetisLinkExtensions / chkThetisLinkExtensions — master switch for fork-only `_ex` commands.
+            // Default UNCHECKED → behaves identical to upstream v2.10.3.15.
+            //
+            // grpThetisLinkExtensions
+            //
+            this.grpThetisLinkExtensions.Controls.Add(this.chkThetisLinkExtensions);
+            this.grpThetisLinkExtensions.Location = new System.Drawing.Point(386, 410);
+            this.grpThetisLinkExtensions.Name = "grpThetisLinkExtensions";
+            this.grpThetisLinkExtensions.Size = new System.Drawing.Size(330, 35);
+            this.grpThetisLinkExtensions.TabIndex = 200;
+            this.grpThetisLinkExtensions.TabStop = false;
+            this.grpThetisLinkExtensions.Text = "ThetisLink TL2-1 extensions";
+            //
+            // chkThetisLinkExtensions
+            //
+            this.chkThetisLinkExtensions.AutoSize = true;
+            this.chkThetisLinkExtensions.Checked = false;
+            this.chkThetisLinkExtensions.Image = null;
+            this.chkThetisLinkExtensions.Location = new System.Drawing.Point(10, 14);
+            this.chkThetisLinkExtensions.Name = "chkThetisLinkExtensions";
+            this.chkThetisLinkExtensions.Size = new System.Drawing.Size(200, 17);
+            this.chkThetisLinkExtensions.TabIndex = 201;
+            this.chkThetisLinkExtensions.Text = "Enable ThetisLink extensions (PA3GHM)";
+            this.toolTip1.SetToolTip(this.chkThetisLinkExtensions, "Enable TCI fork-extensions used only by ThetisLink clients. Stock TCI clients are not affected.");
+            this.chkThetisLinkExtensions.UseVisualStyleBackColor = true;
+            this.chkThetisLinkExtensions.CheckedChanged += new System.EventHandler(this.chkThetisLinkExtensions_CheckedChanged);
+            // [ThetisLink TL2-1] END
+            //
             // tbMIDIcat
-            // 
+            //
             this.tbMIDIcat.BackColor = System.Drawing.SystemColors.Control;
             this.tbMIDIcat.Controls.Add(this.groupBox1);
             this.tbMIDIcat.Location = new System.Drawing.Point(4, 22);
@@ -72344,6 +72391,10 @@
             this.tpTCITCPIPN1MM.ResumeLayout(false);
             this.grpTCIServer.ResumeLayout(false);
             this.grpTCIServer.PerformLayout();
+            // [ThetisLink TL2-1] BEGIN
+            this.grpThetisLinkExtensions.ResumeLayout(false);
+            this.grpThetisLinkExtensions.PerformLayout();
+            // [ThetisLink TL2-1] END
             ((System.ComponentModel.ISupportInitialize)(this.tbTCISpotBackPanel_alpha)).EndInit();
             this.panelTS13.ResumeLayout(false);
             this.panelTS13.PerformLayout();
@@ -74648,6 +74699,10 @@
         private NumericUpDownTS ud6mRx2LNAGainOffset;
         private LabelTS lblRx26mLNA;
         private TabPage tpTCITCPIPN1MM;
+        // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+        private System.Windows.Forms.GroupBoxTS grpThetisLinkExtensions;
+        private System.Windows.Forms.CheckBoxTS chkThetisLinkExtensions;
+        // [ThetisLink TL2-1] END
         public GroupBoxTS groupBoxTS10;
         private ButtonTS btnTuneStepChangeLarger2;
         private ButtonTS btnTuneStepChangeSmaller2;

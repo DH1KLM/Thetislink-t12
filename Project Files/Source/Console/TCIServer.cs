@@ -37,6 +37,15 @@ mw0lge@grange-lane.co.uk
 // its original terms and is not affected by this dual-licensing statement in any way.        //
 // Richard Samphire can be reached by email at :  mw0lge@grange-lane.co.uk                    //
 //============================================================================================//
+//
+//================================================================================================//
+// SPDX-License-Identifier: GPL-2.0-or-later                                                       //
+// ThetisLink TL2-1 fork modifications by PA3GHM (cjenschede), starting 2026-05-06.                //
+// Placeholder only — TL-only `_ex` commands are added in opvolger-patches and gated behind        //
+// `Console.ThetisLinkExtensionsEnabled` (Setup > Network > IQ Stream > "ThetisLink extensions").  //
+// With the checkbox off, this file behaves identical to upstream v2.10.3.15.                      //
+// See NOTICE.md and ATTRIBUTION.md in the repository root for fork details.                       //
+//================================================================================================//
 
 
 // info from

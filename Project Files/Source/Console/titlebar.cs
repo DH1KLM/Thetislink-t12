@@ -41,6 +41,13 @@
 // its original terms and is not affected by this dual-licensing statement in any way.        //
 // Richard Samphire can be reached by email at :  mw0lge@grange-lane.co.uk                    //
 //============================================================================================//
+//
+//================================================================================================//
+// SPDX-License-Identifier: GPL-2.0-or-later                                                       //
+// ThetisLink TL2-1 fork modifications by PA3GHM (cjenschede), starting 2026-05-06.                //
+// Title-bar build-tag "PA3GHM TL2-1" appended next to upstream "MW0LGE" tag (NOTICE.md).          //
+// See NOTICE.md and ATTRIBUTION.md in the repository root for fork details.                       //
+//================================================================================================//
 
 using System;
 using System.Diagnostics;
@@ -51,6 +58,9 @@ namespace Thetis
     class TitleBar
     {
         public const string BUILD_NAME = "MW0LGE";
+        // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+        public const string FORK_BUILD_NAME = "PA3GHM TL2-1";
+        // [ThetisLink TL2-1] END
         public static string GetString(bool bWithFirmware = true)
         {
             string sRevision = "." + Common.GetRevision();
@@ -65,6 +75,9 @@ namespace Thetis
             s += " (" + VersionInfo.BuildDate + ")<FW>";  //[2.10.2.2]MW0LGE use the auto generated class from pre build event for the BuildDate
 
             if (BUILD_NAME != "") s += " " + BUILD_NAME;
+            // [ThetisLink TL2-1] BEGIN
+            if (FORK_BUILD_NAME != "") s += " " + FORK_BUILD_NAME;
+            // [ThetisLink TL2-1] END
 
             if (!bWithFirmware) s = s.Replace("<FW>", "");
 
