@@ -2535,13 +2535,6 @@ namespace Thetis
 
             sendFilterBand(0, consoleThreadSafe.RX1FilterLow, consoleThreadSafe.RX1FilterHigh);
             sendFilterBand(1, consoleThreadSafe.RX2FilterLow, consoleThreadSafe.RX2FilterHigh);
-            // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
-            // Initial-burst entry for fork-only rx_filter_preset_ex push so connecting
-            // clients receive the current preset slot index without needing a query.
-            // Self-gates via sendRxFilterPresetEx() — no-op when ThetisLink-extensions off.
-            sendRxFilterPresetEx(0, (int)consoleThreadSafe.RX1Filter);
-            sendRxFilterPresetEx(1, (int)consoleThreadSafe.RX2Filter);
-            // [ThetisLink TL2-1] END
             sendTXFilterBandEx(consoleThreadSafe.TXFilterLow, consoleThreadSafe.TXFilterHigh);
 
             sendRXEnable(0, !consoleThreadSafe.MOX);
@@ -2707,6 +2700,19 @@ namespace Thetis
 
 			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
 		}
+
+		// Initial-state burst for TL2-1 fork-only `_ex` properties. Sent during connect
+		// AFTER sendCapabilities() so clients first see what the server supports, then the
+		// current state of those `_ex` features. Self-gates via the same checkbox; vink UIT
+		// means no extra frames in the init-burst.
+		private void sendInitialThetisLinkState()
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled)
+				return;
+
+			sendRxFilterPresetEx(0, (int)consoleThreadSafe.RX1Filter);
+			sendRxFilterPresetEx(1, (int)consoleThreadSafe.RX2Filter);
+		}
 		// [ThetisLink TL2-1] END
 
 		private void sendInitialisationData()
@@ -2746,9 +2752,11 @@ namespace Thetis
 			sendInitialRadioState();
 
 			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
-			// Broadcast capability-list before "ready;" so TL clients can mode-detect during init-burst.
-			// No-op when ThetisLink-extensions checkbox is off (sendCapabilities self-gates).
+			// Order: caps first (so client knows what the server supports), then TL-only _ex
+			// initial state (so client can sync without querying). Both self-gated and no-op
+			// when the ThetisLink-extensions checkbox is off.
 			sendCapabilities();
+			sendInitialThetisLinkState();
 			// [ThetisLink TL2-1] END
 
 			sendTextFrame("ready;");
