@@ -1495,6 +1495,9 @@ namespace Thetis
         {
 			if (m_disconnected) return;
 			sendFilterBand(rx-1, low, high);
+			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+			sendRxFilterPresetEx(rx-1, (int)newFilter);
+			// [ThetisLink TL2-1] END
 		}
 		public void FilterEdgesChange(int rx, Filter filter, Band band, int low, int high)
 		{
@@ -2428,6 +2431,19 @@ namespace Thetis
 			string s = "rx_filter_band:" + rx.ToString() + "," + low.ToString() + "," + high.ToString() + ";";
 			sendTextFrame(s);
 		}
+
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+		// Push for filter-preset index (Filter enum value F1..VAR2) — fork-only, complements
+		// stock `rx_filter_band` (which only carries low/high cut Hz, not the preset slot index).
+		// Format: `rx_filter_preset_ex:rx,index;` (rx 0=RX1, 1=RX2; index is (int)Filter value).
+		private void sendRxFilterPresetEx(int rx, int presetIndex)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled)
+				return;
+			string s = "rx_filter_preset_ex:" + rx.ToString() + "," + presetIndex.ToString() + ";";
+			sendTextFrame(s);
+		}
+		// [ThetisLink TL2-1] END
         private void normalizeTXFilterBandForSet(ref int low, ref int high)
         {
             low = Math.Max(0, low);
@@ -2519,6 +2535,13 @@ namespace Thetis
 
             sendFilterBand(0, consoleThreadSafe.RX1FilterLow, consoleThreadSafe.RX1FilterHigh);
             sendFilterBand(1, consoleThreadSafe.RX2FilterLow, consoleThreadSafe.RX2FilterHigh);
+            // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+            // Initial-burst entry for fork-only rx_filter_preset_ex push so connecting
+            // clients receive the current preset slot index without needing a query.
+            // Self-gates via sendRxFilterPresetEx() — no-op when ThetisLink-extensions off.
+            sendRxFilterPresetEx(0, (int)consoleThreadSafe.RX1Filter);
+            sendRxFilterPresetEx(1, (int)consoleThreadSafe.RX2Filter);
+            // [ThetisLink TL2-1] END
             sendTXFilterBandEx(consoleThreadSafe.TXFilterLow, consoleThreadSafe.TXFilterHigh);
 
             sendRXEnable(0, !consoleThreadSafe.MOX);
@@ -2679,7 +2702,8 @@ namespace Thetis
 				return;
 
 			var caps = new System.Collections.Generic.List<string>();
-			// (capabilities populated by opvolger-patches)
+			caps.Add("rx_filter_preset_ex");
+			// (further capabilities populated by opvolger-patches)
 
 			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
 		}
