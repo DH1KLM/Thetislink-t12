@@ -1,0 +1,55 @@
+# NOTICE — ThetisLink TL2-1 fork of Thetis
+
+ThetisLink TL2-1 is a fork of [Thetis](https://github.com/ramdor/Thetis)
+by Richard Samphire (MW0LGE) — see upstream
+[ramdor/Thetis@v2.10.3.15](https://github.com/ramdor/Thetis/releases/tag/v2.10.3.15)
+as the base point of this fork.
+
+## Upstream
+
+- **Project:** Thetis
+- **Upstream maintainer:** Richard Samphire (MW0LGE)
+- **Upstream repository:** https://github.com/ramdor/Thetis
+- **Upstream archived:** 2 April 2026 (see upstream ReadMe.md)
+- **Base tag for this fork:** `v2.10.3.15`
+- **License:** GNU General Public License, version 2 or later (`GPL-2.0-or-later`),
+  see `LICENSE`
+- **Author dual-licensing reservation:** Richard Samphire reserves the right to
+  re-license his own contributions under different terms; see
+  `LICENSE-DUAL-LICENSING`. This reservation applies only to code originally
+  written by Richard Samphire — it does not extend to code contributed by
+  others, including this fork's ThetisLink modifications.
+
+## This fork
+
+- **Fork name:** ThetisLink TL2-1
+- **Fork maintainer:** PA3GHM (cjenschede)
+- **Branch:** `thetislink-tl2`
+- **Purpose:** companion application support for the
+  [ThetisLink](https://github.com/cjenschede/ThetisLink) remote-control client.
+  All ThetisLink-specific TCI extensions are gated behind a single
+  "ThetisLink extensions" checkbox in `Setup > Network > IQ Stream`.
+  With the checkbox **off**, this build behaves identically to upstream
+  v2.10.3.15. With the checkbox **on**, additional `_ex` TCI commands and
+  push notifications are enabled for ThetisLink clients.
+- **Modifications:** see per-file SPDX headers and modification markers; the
+  cumulative diff against `v2.10.3.15` is the complete set of fork changes.
+- **License of modifications:** GNU General Public License, version 2 or later
+  (`GPL-2.0-or-later`) — same as upstream. The dual-licensing reservation in
+  `LICENSE-DUAL-LICENSING` is **not** claimed for ThetisLink modifications.
+
+## Pre-upstream heritage
+
+Thetis itself derives from earlier open-source SDR projects:
+
+- **PowerSDR** — original software-defined-radio platform by FlexRadio Systems
+- **OpenHPSDR** — community fork supporting the open Hermes/Apache hardware
+  family, from which the Thetis lineage continues
+
+Both ancestor projects are GPL-licensed; their contributions are preserved
+through the unbroken upstream history of this repository.
+
+## Build identification
+
+Builds produced from this fork display `PA3GHM TL2-1` next to the upstream
+version string in the title bar.
