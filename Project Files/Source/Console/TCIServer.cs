@@ -2696,7 +2696,15 @@ namespace Thetis
 
 			var caps = new System.Collections.Generic.List<string>();
 			caps.Add("rx_filter_preset_ex");
-			// (further capabilities populated by opvolger-patches)
+			caps.Add("diversity_enable_ex");
+			caps.Add("diversity_source_ex");
+			caps.Add("diversity_ref_ex");
+			caps.Add("diversity_phase_ex");
+			caps.Add("diversity_gain_ex");
+			caps.Add("diversity_sweep_ex");
+			caps.Add("diversity_fastsweep_ex");
+			// (further capabilities populated by opvolger-patches: diversity_autonull_ex,
+			// diversity_smartnull_ex, diversity_ultranull_ex)
 
 			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
 		}
@@ -2712,6 +2720,298 @@ namespace Thetis
 
 			sendRxFilterPresetEx(0, (int)consoleThreadSafe.RX1Filter);
 			sendRxFilterPresetEx(1, (int)consoleThreadSafe.RX2Filter);
+
+			// Diversity initial state — empty-args invocation triggers GET-mode response in each handler.
+			handleDiversityEnableEx(new string[] { "" });
+			handleDiversitySourceEx(new string[] { "" });
+			handleDiversityRefEx(new string[] { "" });
+			handleDiversityPhaseEx(new string[] { "" });
+			// Gain push is per-RX; emit both
+			handleDiversityGainEx(new string[] { "0" });
+			handleDiversityGainEx(new string[] { "1" });
+		}
+
+		// Lazy-init for the DiversityForm. CAT diversity properties on Console proxy to
+		// diversityForm fields, so the form must exist before any diversity SET succeeds.
+		// Form creation must run on the UI thread.
+		private void ensureDiversityForm()
+		{
+			if (_console == null) return;
+			if (_console.diversityForm == null || _console.diversityForm.IsDisposed)
+			{
+				_console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+				{
+					if (_console.diversityForm == null || _console.diversityForm.IsDisposed)
+						_console.diversityForm = new DiversityForm(_console);
+				}));
+			}
+		}
+
+		// diversity_enable_ex:true|false;  (GET when payload empty)
+		private void handleDiversityEnableEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length != 1) return;
+			ensureDiversityForm();
+
+			if (args[0].Trim() == "")
+			{
+				sendTextFrame("diversity_enable_ex:" + consoleThreadSafe.CATDiversityEnable.ToString().ToLower() + ";");
+			}
+			else
+			{
+				if (!bool.TryParse(args[0], out bool enabled)) return;
+				consoleThreadSafe.CATDiversityEnable = enabled;
+			}
+		}
+
+		// diversity_source_ex:N;  (GET when payload empty; N is integer channel selector)
+		private void handleDiversitySourceEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length != 1) return;
+			ensureDiversityForm();
+
+			if (args[0].Trim() == "")
+			{
+				sendTextFrame("diversity_source_ex:" + consoleThreadSafe.CATDiversityRXSource + ";");
+			}
+			else
+			{
+				if (!int.TryParse(args[0], out int source)) return;
+				consoleThreadSafe.CATDiversityRXSource = source;
+			}
+		}
+
+		// diversity_ref_ex:true|false;  (true = RX1 ref, false = RX2 ref). GET when empty.
+		private void handleDiversityRefEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length != 1) return;
+			ensureDiversityForm();
+
+			if (args[0].Trim() == "")
+			{
+				sendTextFrame("diversity_ref_ex:" + consoleThreadSafe.CATDiversityRXRefSource.ToString().ToLower() + ";");
+			}
+			else
+			{
+				if (!bool.TryParse(args[0], out bool refRx1)) return;
+				consoleThreadSafe.CATDiversityRXRefSource = refRx1;
+			}
+		}
+
+		// diversity_phase_ex:N;  N is integer in 0.01° units, range -18000..+18000. GET when empty.
+		private void handleDiversityPhaseEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length != 1) return;
+			ensureDiversityForm();
+
+			if (args[0].Trim() == "")
+			{
+				decimal phase = consoleThreadSafe.CATDiversityPhase;
+				sendTextFrame("diversity_phase_ex:" + ((int)(phase * 100m)) + ";");
+			}
+			else
+			{
+				if (!int.TryParse(args[0], out int phaseInt)) return;
+				phaseInt = Math.Max(-18000, Math.Min(18000, phaseInt));
+				consoleThreadSafe.CATDiversityPhase = phaseInt / 100m;
+			}
+		}
+
+		// diversity_gain_ex:rx,gainint;  rx is 0|1, gainint is gain * 1000 (0..10000). GET via rx-only.
+		private void handleDiversityGainEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length < 1 || args.Length > 2) return;
+			if (!int.TryParse(args[0], out int rx)) return;
+			if (rx < 0 || rx > 1) return;
+			ensureDiversityForm();
+
+			if (args.Length == 1)
+			{
+				decimal gain = rx == 0 ? consoleThreadSafe.CATDiversityRX1Gain
+				                       : consoleThreadSafe.CATDiversityRX2Gain;
+				sendTextFrame("diversity_gain_ex:" + rx + "," + ((int)(gain * 1000m)) + ";");
+			}
+			else
+			{
+				if (!int.TryParse(args[1], out int gainInt)) return;
+				gainInt = Math.Max(0, Math.Min(10000, gainInt));
+				decimal gain = gainInt / 1000m;
+				if (rx == 0) consoleThreadSafe.CATDiversityRX1Gain = gain;
+				else consoleThreadSafe.CATDiversityRX2Gain = gain;
+			}
+		}
+
+		// diversity_sweep_ex:type,start,end,step,settleMs;  type is "phase" or "gain".
+		// Result frame: diversity_sweep_result_ex:type,val1:rssi1,val2:rssi2,...;
+		// Inner-tuple separator stays `:` for TL-server compatibility (sdr-remote tci_parser.rs:563).
+		private void handleDiversitySweepEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length < 5) return;
+			string sweepType = args[0].Trim().ToLower();
+			var ic = System.Globalization.CultureInfo.InvariantCulture;
+			if (!float.TryParse(args[1], System.Globalization.NumberStyles.Float, ic, out float start)) return;
+			if (!float.TryParse(args[2], System.Globalization.NumberStyles.Float, ic, out float end)) return;
+			if (!float.TryParse(args[3], System.Globalization.NumberStyles.Float, ic, out float step)) return;
+			if (!int.TryParse(args[4], out int settleMs)) return;
+			if (step <= 0 || settleMs < 5 || settleMs > 500) return;
+
+			bool isPhase = sweepType == "phase";
+			ensureDiversityForm();
+
+			var listener = this;
+			var c = _console;
+			System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+			{
+				try
+				{
+					var results = new System.Collections.Generic.List<string>();
+					float val = start;
+					int safety = 0;
+					while (val <= end && safety++ < 720)
+					{
+						float currentVal = val;
+						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+						{
+							if (isPhase)
+							{
+								c.CATDiversityPhase = (decimal)currentVal;
+							}
+							else
+							{
+								// Gain input is dB offset; convert to linear factor in 0.01..10 range
+								decimal gain = (decimal)Math.Pow(10.0, currentVal / 20.0);
+								gain = Math.Max(0.01m, Math.Min(10m, gain));
+								if (c.diversityForm != null)
+								{
+									if (c.CATDiversityRXRefSource)
+										c.diversityForm.DiversityR2Gain = gain;
+									else
+										c.diversityForm.DiversityGain = gain;
+								}
+							}
+						}));
+
+						System.Threading.Thread.Sleep(settleMs);
+
+						float dbm = -200f;
+						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+						{
+							dbm = WDSP.CalculateRXMeter(0, 0, WDSP.MeterType.SIGNAL_STRENGTH);
+						}));
+
+						results.Add(currentVal.ToString("F1", ic) + ":" + dbm.ToString("F1", ic));
+						val += step;
+					}
+
+					listener.sendTextFrame("diversity_sweep_result_ex:" + sweepType + "," + string.Join(",", results) + ";");
+				}
+				catch (Exception ex)
+				{
+					System.Diagnostics.Debug.Print("Diversity sweep error: " + ex.Message);
+				}
+			});
+		}
+
+		// diversity_fastsweep_ex:type,start,end,step[,settleMs[,meterMode]];
+		// Sends two result frames: fwd_<type> then bwd_<type>.
+		// Triple format: t:val:rssi  (`:` inner separator for TL-server compat per §6 decision-log).
+		private void handleDiversityFastsweepEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length < 4) return;
+			string sweepType = args[0].Trim().ToLower();
+			var ic = System.Globalization.CultureInfo.InvariantCulture;
+			if (!float.TryParse(args[1], System.Globalization.NumberStyles.Float, ic, out float start)) return;
+			if (!float.TryParse(args[2], System.Globalization.NumberStyles.Float, ic, out float end)) return;
+			if (!float.TryParse(args[3], System.Globalization.NumberStyles.Float, ic, out float step)) return;
+			if (step <= 0) return;
+			int settleMs = 0;
+			if (args.Length >= 5) int.TryParse(args[4], out settleMs);
+			settleMs = Math.Max(0, Math.Min(1000, settleMs));
+			int meterMode = 0;
+			if (args.Length >= 6) int.TryParse(args[5], out meterMode);
+			var meterType = meterMode == 1 ? WDSP.MeterType.AVG_SIGNAL_STRENGTH : WDSP.MeterType.SIGNAL_STRENGTH;
+
+			bool isPhase = sweepType == "phase";
+			ensureDiversityForm();
+
+			var listener = this;
+			var c = _console;
+			System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+			{
+				try
+				{
+					var sw = System.Diagnostics.Stopwatch.StartNew();
+
+					Action<float, System.Collections.Generic.List<string>> doStep = (currentVal, resultList) =>
+					{
+						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+						{
+							if (isPhase)
+							{
+								float phase = currentVal;
+								while (phase > 180f) phase -= 360f;
+								while (phase < -180f) phase += 360f;
+								c.CATDiversityPhase = (decimal)phase;
+							}
+							else
+							{
+								decimal gain = (decimal)Math.Pow(10.0, currentVal / 20.0);
+								gain = Math.Max(0.01m, Math.Min(10m, gain));
+								if (c.diversityForm != null)
+								{
+									if (c.CATDiversityRXRefSource)
+										c.diversityForm.DiversityR2Gain = gain;
+									else
+										c.diversityForm.DiversityGain = gain;
+								}
+							}
+						}));
+						if (settleMs > 0) System.Threading.Thread.Sleep(settleMs);
+						float dbm = -200f;
+						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+						{
+							dbm = WDSP.CalculateRXMeter(0, 0, meterType);
+						}));
+						long ms = sw.ElapsedMilliseconds;
+						resultList.Add(ms + ":" +
+							currentVal.ToString("F1", ic) + ":" +
+							dbm.ToString("F1", ic));
+					};
+
+					var fwdResults = new System.Collections.Generic.List<string>();
+					float val = start;
+					while (val <= end && fwdResults.Count < 5000)
+					{
+						doStep(val, fwdResults);
+						val += step;
+					}
+
+					var bwdResults = new System.Collections.Generic.List<string>();
+					val = end;
+					while (val >= start && bwdResults.Count < 5000)
+					{
+						doStep(val, bwdResults);
+						val -= step;
+					}
+
+					sw.Stop();
+					listener.sendTextFrame("diversity_fastsweep_result_ex:fwd_" + sweepType + "," +
+						string.Join(",", fwdResults) + ";");
+					listener.sendTextFrame("diversity_fastsweep_result_ex:bwd_" + sweepType + "," +
+						string.Join(",", bwdResults) + ";");
+				}
+				catch (Exception ex)
+				{
+					System.Diagnostics.Debug.Print("Diversity fastsweep error: " + ex.Message);
+				}
+			});
 		}
 		// [ThetisLink TL2-1] END
 
@@ -5584,6 +5884,31 @@ namespace Thetis
                         // this is special, we send whole of msg and handle it there
                         handleRunCatCommand(msg);
                         break;
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
+                    // Diversity-basics dispatch (SET form with args). Each handler self-gates on
+                    // ThetisLinkExtensionsEnabled; vink UIT means no-op.
+                    case "diversity_enable_ex":
+                        handleDiversityEnableEx(args);
+                        break;
+                    case "diversity_source_ex":
+                        handleDiversitySourceEx(args);
+                        break;
+                    case "diversity_ref_ex":
+                        handleDiversityRefEx(args);
+                        break;
+                    case "diversity_phase_ex":
+                        handleDiversityPhaseEx(args);
+                        break;
+                    case "diversity_gain_ex":
+                        handleDiversityGainEx(args);
+                        break;
+                    case "diversity_sweep_ex":
+                        handleDiversitySweepEx(args);
+                        break;
+                    case "diversity_fastsweep_ex":
+                        handleDiversityFastsweepEx(args);
+                        break;
+                    // [ThetisLink TL2-1] END
 
                 }
             }
@@ -5669,6 +5994,20 @@ namespace Thetis
                     // a no-op (matching stock behaviour where the command is unrecognised).
                     case "tci_caps_ex":
                         sendCapabilities();
+                        break;
+                    // Diversity-basics dispatch (no-args = GET; calls handler with empty arg).
+                    // Sweep and fastsweep are intentionally absent — they require args to be useful.
+                    case "diversity_enable_ex":
+                        handleDiversityEnableEx(new string[] { "" });
+                        break;
+                    case "diversity_source_ex":
+                        handleDiversitySourceEx(new string[] { "" });
+                        break;
+                    case "diversity_ref_ex":
+                        handleDiversityRefEx(new string[] { "" });
+                        break;
+                    case "diversity_phase_ex":
+                        handleDiversityPhaseEx(new string[] { "" });
                         break;
                     // [ThetisLink TL2-1] END
                 }
