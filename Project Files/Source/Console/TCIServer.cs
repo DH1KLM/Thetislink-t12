@@ -2733,6 +2733,39 @@ namespace Thetis
 			handleDiversityGainEx(new string[] { "1" });
 		}
 
+		// Per-listener dispatch for diversity-form change events. Re-uses the existing
+		// handler GET-pad (empty args triggers a single push of current value) so the
+		// frame format and gating stay consistent with TCI-initiated GET responses.
+		// If the listener is disconnected the handler self-gates via consoleThreadSafe
+		// null-check; no extra disconnect-guard needed here.
+		public void DispatchDiversityChange(Console.DiversityProperty prop)
+		{
+			switch (prop)
+			{
+				case Console.DiversityProperty.Enable:
+					handleDiversityEnableEx(new string[] { "" });
+					break;
+				case Console.DiversityProperty.Source:
+					handleDiversitySourceEx(new string[] { "" });
+					break;
+				case Console.DiversityProperty.Ref:
+					handleDiversityRefEx(new string[] { "" });
+					break;
+				case Console.DiversityProperty.Phase:
+					handleDiversityPhaseEx(new string[] { "" });
+					break;
+				case Console.DiversityProperty.GainRx1:
+					handleDiversityGainEx(new string[] { "0" });
+					break;
+				case Console.DiversityProperty.GainRx2:
+					handleDiversityGainEx(new string[] { "1" });
+					break;
+				case Console.DiversityProperty.GainMulti:
+					handleDiversityGainMultiEx(new string[] { "" });
+					break;
+			}
+		}
+
 		// Lazy-init for the DiversityForm. CAT diversity properties on Console proxy to
 		// diversityForm fields, so the form must exist before any diversity SET succeeds.
 		// Form creation must run on the UI thread.
@@ -7166,6 +7199,8 @@ namespace Thetis
 					console.CentreFrequencyHandlers += OnCentreFrequencyChanged;
 					console.FilterChangedHandlers += OnFilterChanged;
 					console.FilterEdgesChangedHandlers += OnFilterEdgesChanged;
+					// [ThetisLink TL2-1] subscribe to diversity-form change events
+					console.DiversityChangedHandlers += OnDiversityChanged;
                     console.TXFiltersChangedHandlers += OnTXFiltersChanged;
 					console.PowerChangeHanders += OnPowerChangeHander;
 					console.SplitChangedHandlers += OnSplitChanged;
@@ -7279,6 +7314,8 @@ namespace Thetis
 					console.CentreFrequencyHandlers -= OnCentreFrequencyChanged;
 					console.FilterChangedHandlers -= OnFilterChanged;
 					console.FilterEdgesChangedHandlers -= OnFilterEdgesChanged;
+					// [ThetisLink TL2-1] unsubscribe from diversity-form change events
+					console.DiversityChangedHandlers -= OnDiversityChanged;
                     console.TXFiltersChangedHandlers -= OnTXFiltersChanged;
 					console.PowerChangeHanders -= OnPowerChangeHander;
 					console.SplitChangedHandlers -= OnSplitChanged;
@@ -7835,6 +7872,24 @@ namespace Thetis
 				}
 			}
 		}
+
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
+		// Fan-out diversity-form change events from Console to all connected TCI listeners.
+		// Each listener self-gates on ThetisLinkExtensionsEnabled inside the dispatched
+		// handler — so vink UIT means no push hits the wire.
+		public void OnDiversityChanged(Console.DiversityProperty prop)
+		{
+			lock (m_objLocker)
+			{
+				if (m_server == null || m_socketListenersList == null) return;
+
+				foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+				{
+					socketListener.DispatchDiversityChange(prop);
+				}
+			}
+		}
+		// [ThetisLink TL2-1] END
 		public void OnFilterEdgesChanged(int rx, Filter filter, Band band, int low, int high, string sName, int max_width, int max_shift)
 		{
 			lock (m_objLocker)
