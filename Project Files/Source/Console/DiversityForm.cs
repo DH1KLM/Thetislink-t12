@@ -2031,15 +2031,11 @@ namespace Thetis
                 //btnShift180.PerformClick();
             }
             console.DiversityRXRef = radioButtonMerc1.Checked;
-            // [ThetisLink TL2-1] notify outside world of ref change
-            console?.NotifyDiversityChanged(Console.DiversityProperty.Ref);
         }
 
         private void radioButtonMerc2_CheckedChanged(object sender, EventArgs e)
         {
             if (_initalising) return;
-            // [ThetisLink TL2-1] notify outside world of ref change
-            console?.NotifyDiversityChanged(Console.DiversityProperty.Ref);
             if (radioButtonMerc2.Checked)
             {
                 udR1.Visible = true;
@@ -2082,8 +2078,6 @@ namespace Thetis
         private void udR2_ValueChanged(object sender, EventArgs e)
         {
             if (_initalising) return;
-            // [ThetisLink TL2-1] notify outside world of RX2 gain change
-            console?.NotifyDiversityChanged(Console.DiversityProperty.GainRx2);
             if (radioButtonMerc2.Checked) return; // uses R1 when ref is receiver 2
 
             //  if (radioButtonMerc1.Checked)
@@ -2154,8 +2148,6 @@ namespace Thetis
         private void udR1_ValueChanged(object sender, EventArgs e)
         {
             if (_initalising) return;
-            // [ThetisLink TL2-1] notify outside world of RX1 gain change
-            console?.NotifyDiversityChanged(Console.DiversityProperty.GainRx1);
             if (radioButtonMerc1.Checked) return; // uses R2 when ref is receiver 1
 
             //  if (radioButtonMerc2.Checked)
@@ -2486,8 +2478,6 @@ namespace Thetis
         private void udFineNull_ValueChanged(object sender, EventArgs e)
         {
             if (_initalising) return;
-            // [ThetisLink TL2-1] notify outside world of phase change
-            console?.NotifyDiversityChanged(Console.DiversityProperty.Phase);
             if (chkLockAngle.Checked)
             {
                 angle_A = locked_angle;
@@ -2569,8 +2559,6 @@ namespace Thetis
         private void radRxSource1_CheckedChanged(object sender, EventArgs e)
         {
             if (_initalising) return;
-            // [ThetisLink TL2-1] notify outside world of source change
-            if (radRxSource1.Checked) console?.NotifyDiversityChanged(Console.DiversityProperty.Source);
             if (radRxSource1.Checked)
             // Audio.IQSource = 1;
             {
@@ -2585,8 +2573,6 @@ namespace Thetis
         private void radRxSource2_CheckedChanged(object sender, EventArgs e)
         {
             if (_initalising) return;
-            // [ThetisLink TL2-1] notify outside world of source change
-            if (radRxSource2.Checked) console?.NotifyDiversityChanged(Console.DiversityProperty.Source);
             if (radRxSource2.Checked)
             // Audio.IQSource = 2;
             {
@@ -2601,8 +2587,6 @@ namespace Thetis
         private void radRxSourceRx1Rx2_CheckedChanged(object sender, EventArgs e)
         {
             if (_initalising) return;
-            // [ThetisLink TL2-1] notify outside world of source change
-            if (radRxSourceRx1Rx2.Checked) console?.NotifyDiversityChanged(Console.DiversityProperty.Source);
             if (radRxSourceRx1Rx2.Checked)
             // Audio.IQSource = 3;
             {
@@ -2617,8 +2601,6 @@ namespace Thetis
         private void chkEnableDiversity_CheckedChanged(object sender, EventArgs e)
         {
             if (_initalising) return;
-            // [ThetisLink TL2-1] notify outside world of enable change
-            console?.NotifyDiversityChanged(Console.DiversityProperty.Enable);
             console.Diversity2 = chkEnableDiversity.Checked;
             if (chkEnableDiversity.Checked)
             {
@@ -2683,8 +2665,6 @@ namespace Thetis
         private void udGainMulti_ValueChanged(object sender, EventArgs e)
         {
             if (_initalising) return;
-            // [ThetisLink TL2-1] notify outside world of GainMulti change
-            console?.NotifyDiversityChanged(Console.DiversityProperty.GainMulti);
             m_dGainMulti = (double)Math.Round(udGainMulti.Value, 2);
             udR1.Maximum = (decimal)m_dGainMulti;
             udR2.Maximum = (decimal)m_dGainMulti;

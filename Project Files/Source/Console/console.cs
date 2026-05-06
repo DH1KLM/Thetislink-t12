@@ -11640,28 +11640,6 @@ namespace Thetis
                     diversityForm.DiversityGainMulti = value;
             }
         }
-
-        // ── Diversity change-event broadcast (Bug 2 fix) ───────────────────
-        // Lets DiversityForm tell the outside world when the user toggles a control
-        // directly in the Thetis UI. TCIServer subscribes and pushes the matching
-        // `diversity_*_ex:N;` frame so connected TCI clients stay in sync without
-        // needing to reconnect.
-        public enum DiversityProperty
-        {
-            Enable,
-            Source,
-            Ref,
-            Phase,
-            GainRx1,
-            GainRx2,
-            GainMulti,
-        }
-        public delegate void DiversityChanged(DiversityProperty prop);
-        public DiversityChanged DiversityChangedHandlers;
-        public void NotifyDiversityChanged(DiversityProperty prop)
-        {
-            DiversityChangedHandlers?.Invoke(prop);
-        }
         // [ThetisLink TL2-1] END
 
         public bool CATDiversityEnable
