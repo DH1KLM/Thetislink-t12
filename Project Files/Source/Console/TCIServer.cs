@@ -2747,40 +2747,36 @@ namespace Thetis
 			}
 		}
 
-		// diversity_enable_ex:true|false;  (GET when payload empty)
+		// diversity_enable_ex:true|false;  (GET when payload empty; SET emits confirmation frame)
 		private void handleDiversityEnableEx(string[] args)
 		{
 			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
 			if (args == null || args.Length != 1) return;
 			ensureDiversityForm();
 
-			if (args[0].Trim() == "")
-			{
-				sendTextFrame("diversity_enable_ex:" + consoleThreadSafe.CATDiversityEnable.ToString().ToLower() + ";");
-			}
-			else
+			if (args[0].Trim() != "")
 			{
 				if (!bool.TryParse(args[0], out bool enabled)) return;
 				consoleThreadSafe.CATDiversityEnable = enabled;
 			}
+			// Always echo current state (covers both GET and post-SET confirmation).
+			sendTextFrame("diversity_enable_ex:" + consoleThreadSafe.CATDiversityEnable.ToString().ToLower() + ";");
 		}
 
-		// diversity_source_ex:N;  (GET when payload empty; N is integer channel selector)
+		// diversity_source_ex:N;  Valid: 0=RX1+RX2 combined, 1=RX1, 2=RX2.  GET when payload empty.
 		private void handleDiversitySourceEx(string[] args)
 		{
 			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
 			if (args == null || args.Length != 1) return;
 			ensureDiversityForm();
 
-			if (args[0].Trim() == "")
-			{
-				sendTextFrame("diversity_source_ex:" + consoleThreadSafe.CATDiversityRXSource + ";");
-			}
-			else
+			if (args[0].Trim() != "")
 			{
 				if (!int.TryParse(args[0], out int source)) return;
+				if (source < 0 || source > 2) return;
 				consoleThreadSafe.CATDiversityRXSource = source;
 			}
+			sendTextFrame("diversity_source_ex:" + consoleThreadSafe.CATDiversityRXSource + ";");
 		}
 
 		// diversity_ref_ex:true|false;  (true = RX1 ref, false = RX2 ref). GET when empty.
@@ -2790,15 +2786,12 @@ namespace Thetis
 			if (args == null || args.Length != 1) return;
 			ensureDiversityForm();
 
-			if (args[0].Trim() == "")
-			{
-				sendTextFrame("diversity_ref_ex:" + consoleThreadSafe.CATDiversityRXRefSource.ToString().ToLower() + ";");
-			}
-			else
+			if (args[0].Trim() != "")
 			{
 				if (!bool.TryParse(args[0], out bool refRx1)) return;
 				consoleThreadSafe.CATDiversityRXRefSource = refRx1;
 			}
+			sendTextFrame("diversity_ref_ex:" + consoleThreadSafe.CATDiversityRXRefSource.ToString().ToLower() + ";");
 		}
 
 		// diversity_phase_ex:N;  N is integer in 0.01° units, range -18000..+18000. GET when empty.
@@ -2808,17 +2801,14 @@ namespace Thetis
 			if (args == null || args.Length != 1) return;
 			ensureDiversityForm();
 
-			if (args[0].Trim() == "")
-			{
-				decimal phase = consoleThreadSafe.CATDiversityPhase;
-				sendTextFrame("diversity_phase_ex:" + ((int)(phase * 100m)) + ";");
-			}
-			else
+			if (args[0].Trim() != "")
 			{
 				if (!int.TryParse(args[0], out int phaseInt)) return;
 				phaseInt = Math.Max(-18000, Math.Min(18000, phaseInt));
 				consoleThreadSafe.CATDiversityPhase = phaseInt / 100m;
 			}
+			decimal phase = consoleThreadSafe.CATDiversityPhase;
+			sendTextFrame("diversity_phase_ex:" + ((int)(phase * 100m)) + ";");
 		}
 
 		// diversity_gain_ex:rx,gainint;  rx is 0|1, gainint is gain * 1000 (0..10000). GET via rx-only.
@@ -2830,20 +2820,17 @@ namespace Thetis
 			if (rx < 0 || rx > 1) return;
 			ensureDiversityForm();
 
-			if (args.Length == 1)
-			{
-				decimal gain = rx == 0 ? consoleThreadSafe.CATDiversityRX1Gain
-				                       : consoleThreadSafe.CATDiversityRX2Gain;
-				sendTextFrame("diversity_gain_ex:" + rx + "," + ((int)(gain * 1000m)) + ";");
-			}
-			else
+			if (args.Length == 2)
 			{
 				if (!int.TryParse(args[1], out int gainInt)) return;
 				gainInt = Math.Max(0, Math.Min(10000, gainInt));
-				decimal gain = gainInt / 1000m;
-				if (rx == 0) consoleThreadSafe.CATDiversityRX1Gain = gain;
-				else consoleThreadSafe.CATDiversityRX2Gain = gain;
+				decimal gainSet = gainInt / 1000m;
+				if (rx == 0) consoleThreadSafe.CATDiversityRX1Gain = gainSet;
+				else consoleThreadSafe.CATDiversityRX2Gain = gainSet;
 			}
+			decimal gain = rx == 0 ? consoleThreadSafe.CATDiversityRX1Gain
+			                       : consoleThreadSafe.CATDiversityRX2Gain;
+			sendTextFrame("diversity_gain_ex:" + rx + "," + ((int)(gain * 1000m)) + ";");
 		}
 
 		// diversity_sweep_ex:type,start,end,step,settleMs;  type is "phase" or "gain".
@@ -2854,6 +2841,7 @@ namespace Thetis
 			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
 			if (args == null || args.Length < 5) return;
 			string sweepType = args[0].Trim().ToLower();
+			if (sweepType != "phase" && sweepType != "gain") return;
 			var ic = System.Globalization.CultureInfo.InvariantCulture;
 			if (!float.TryParse(args[1], System.Globalization.NumberStyles.Float, ic, out float start)) return;
 			if (!float.TryParse(args[2], System.Globalization.NumberStyles.Float, ic, out float end)) return;
@@ -2875,6 +2863,7 @@ namespace Thetis
 					int safety = 0;
 					while (val <= end && safety++ < 720)
 					{
+						if (listener.m_disconnected || c == null || c.IsDisposed) return;
 						float currentVal = val;
 						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
 						{
@@ -2899,6 +2888,7 @@ namespace Thetis
 
 						System.Threading.Thread.Sleep(settleMs);
 
+						if (listener.m_disconnected || c == null || c.IsDisposed) return;
 						float dbm = -200f;
 						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
 						{
@@ -2909,7 +2899,8 @@ namespace Thetis
 						val += step;
 					}
 
-					listener.sendTextFrame("diversity_sweep_result_ex:" + sweepType + "," + string.Join(",", results) + ";");
+					if (!listener.m_disconnected)
+						listener.sendTextFrame("diversity_sweep_result_ex:" + sweepType + "," + string.Join(",", results) + ";");
 				}
 				catch (Exception ex)
 				{
@@ -2926,6 +2917,7 @@ namespace Thetis
 			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
 			if (args == null || args.Length < 4) return;
 			string sweepType = args[0].Trim().ToLower();
+			if (sweepType != "phase" && sweepType != "gain") return;
 			var ic = System.Globalization.CultureInfo.InvariantCulture;
 			if (!float.TryParse(args[1], System.Globalization.NumberStyles.Float, ic, out float start)) return;
 			if (!float.TryParse(args[2], System.Globalization.NumberStyles.Float, ic, out float end)) return;
@@ -2949,8 +2941,9 @@ namespace Thetis
 				{
 					var sw = System.Diagnostics.Stopwatch.StartNew();
 
-					Action<float, System.Collections.Generic.List<string>> doStep = (currentVal, resultList) =>
+					Func<float, System.Collections.Generic.List<string>, bool> doStep = (currentVal, resultList) =>
 					{
+						if (listener.m_disconnected || c == null || c.IsDisposed) return false;
 						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
 						{
 							if (isPhase)
@@ -2974,6 +2967,7 @@ namespace Thetis
 							}
 						}));
 						if (settleMs > 0) System.Threading.Thread.Sleep(settleMs);
+						if (listener.m_disconnected || c == null || c.IsDisposed) return false;
 						float dbm = -200f;
 						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
 						{
@@ -2983,13 +2977,14 @@ namespace Thetis
 						resultList.Add(ms + ":" +
 							currentVal.ToString("F1", ic) + ":" +
 							dbm.ToString("F1", ic));
+						return true;
 					};
 
 					var fwdResults = new System.Collections.Generic.List<string>();
 					float val = start;
 					while (val <= end && fwdResults.Count < 5000)
 					{
-						doStep(val, fwdResults);
+						if (!doStep(val, fwdResults)) return;
 						val += step;
 					}
 
@@ -2997,11 +2992,12 @@ namespace Thetis
 					val = end;
 					while (val >= start && bwdResults.Count < 5000)
 					{
-						doStep(val, bwdResults);
+						if (!doStep(val, bwdResults)) return;
 						val -= step;
 					}
 
 					sw.Stop();
+					if (listener.m_disconnected) return;
 					listener.sendTextFrame("diversity_fastsweep_result_ex:fwd_" + sweepType + "," +
 						string.Join(",", fwdResults) + ";");
 					listener.sendTextFrame("diversity_fastsweep_result_ex:bwd_" + sweepType + "," +
