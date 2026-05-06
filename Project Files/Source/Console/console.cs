@@ -11658,22 +11658,8 @@ namespace Thetis
         }
         public delegate void DiversityChanged(DiversityProperty prop);
         public DiversityChanged DiversityChangedHandlers;
-
-        // Throttle to ~20Hz per property. Mouse-drag on the diversity circle cascades
-        // through udR_ValueChanged → udR1/udR2 → angle → udFineNull, producing 2-3
-        // ValueChanged events per mouse move at ~60Hz — way too much for TCI clients
-        // and enough to starve the audio frame queue. The 50ms window drops intermediate
-        // updates; idempotent SET-handlers make any final user state correct on next move.
-        private readonly DateTime[] m_lastDiversityNotify = new DateTime[7];
-        private const int DIVERSITY_NOTIFY_MIN_INTERVAL_MS = 50;
         public void NotifyDiversityChanged(DiversityProperty prop)
         {
-            int idx = (int)prop;
-            if (idx < 0 || idx >= m_lastDiversityNotify.Length) return;
-            DateTime now = DateTime.UtcNow;
-            if ((now - m_lastDiversityNotify[idx]).TotalMilliseconds < DIVERSITY_NOTIFY_MIN_INTERVAL_MS)
-                return;
-            m_lastDiversityNotify[idx] = now;
             DiversityChangedHandlers?.Invoke(prop);
         }
         // [ThetisLink TL2-1] END

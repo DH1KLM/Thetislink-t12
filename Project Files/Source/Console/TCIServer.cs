@@ -7877,25 +7877,17 @@ namespace Thetis
 		// Fan-out diversity-form change events from Console to all connected TCI listeners.
 		// Each listener self-gates on ThetisLinkExtensionsEnabled inside the dispatched
 		// handler — so vink UIT means no push hits the wire.
-		//
-		// IMPORTANT: this is invoked from the DiversityForm's UI-thread ValueChanged
-		// handlers. We MUST hand off to a background thread before doing any socket I/O,
-		// otherwise a slow socket buffer (or many connected clients) blocks the UI thread
-		// and Thetis appears to freeze (TCI audio starves, mouse stops responding).
 		public void OnDiversityChanged(Console.DiversityProperty prop)
 		{
-			System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+			lock (m_objLocker)
 			{
-				lock (m_objLocker)
-				{
-					if (m_server == null || m_socketListenersList == null) return;
+				if (m_server == null || m_socketListenersList == null) return;
 
-					foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
-					{
-						socketListener.DispatchDiversityChange(prop);
-					}
+				foreach (TCPIPtciSocketListener socketListener in m_socketListenersList)
+				{
+					socketListener.DispatchDiversityChange(prop);
 				}
-			});
+			}
 		}
 		// [ThetisLink TL2-1] END
 		public void OnFilterEdgesChanged(int rx, Filter filter, Band band, int low, int high, string sName, int max_width, int max_shift)
