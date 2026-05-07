@@ -879,6 +879,20 @@ namespace Thetis
 
             //sendIFLimits(-halfSample, halfSample);
             sendIFLimits(-halfSample, halfSample); // sadly this is global in tci, so use rx1
+
+            // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
+            // Stock TCI exposes only one global iq_samplerate (= max of both RX) which makes
+            // it impossible for clients to know the actual per-RX rate when RX1 and RX2 differ.
+            // Emit a per-RX ddc_sample_rate_ex push so TL2-1 clients can keep their per-RX
+            // display in sync. Self-gates on ThetisLinkExtensionsEnabled — vink UIT means
+            // stock-only behaviour (no per-RX push).
+            if (consoleThreadSafe != null && consoleThreadSafe.ThetisLinkExtensionsEnabled)
+            {
+                int rxIndex = rx - 1; // wire-format uses 0-based; HWSampleRateChange passes 1-based
+                if (rxIndex >= 0 && rxIndex <= 1)
+                    sendTextFrame("ddc_sample_rate_ex:" + rxIndex + "," + newSampleRate + ";");
+            }
+            // [ThetisLink TL2-1] END
         }
 
         internal bool RequiresRxSensorUpdate(int receiver, int channel)
@@ -2729,6 +2743,11 @@ namespace Thetis
 
 			sendRxFilterPresetEx(0, (int)consoleThreadSafe.RX1Filter);
 			sendRxFilterPresetEx(1, (int)consoleThreadSafe.RX2Filter);
+
+			// Per-RX DDC sample rate — the global `iq_samplerate` only carries max(rx1,rx2),
+			// so clients need the per-RX values to keep both displays accurate.
+			sendTextFrame("ddc_sample_rate_ex:0," + consoleThreadSafe.SampleRateRX1 + ";");
+			sendTextFrame("ddc_sample_rate_ex:1," + consoleThreadSafe.SampleRateRX2 + ";");
 
 			// Diversity initial state — empty-args invocation triggers GET-mode response in each handler.
 			handleDiversityEnableEx(new string[] { "" });
