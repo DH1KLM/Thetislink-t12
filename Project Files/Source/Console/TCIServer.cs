@@ -2713,6 +2713,7 @@ namespace Thetis
 			caps.Add("diversity_autonull_ex");
 			caps.Add("diversity_smartnull_ex");
 			caps.Add("diversity_ultranull_ex");
+			caps.Add("ddc_sample_rate_ex");
 
 			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
 		}
@@ -3037,6 +3038,51 @@ namespace Thetis
 					System.Diagnostics.Debug.Print("Diversity fastsweep error: " + ex.Message);
 				}
 			});
+		}
+
+		// ddc_sample_rate_ex:rx,rate;  (rate must be one of 48000/96000/192000/384000/768000/1536000)
+		// GET via empty payload OR rx-only. Stock Thetis applies the rate via the existing
+		// SetupForm.SetHWSampleRate() path used by both UI selection and CAT — TCI-initiated
+		// SET is just a remote-control hook on top of the same plumbing.
+		//
+		// KNOWN-ISSUE (upstream regression suspected between 2.10.3.13 and 2.10.3.15): rate
+		// change while RX is active may freeze the DSP pipeline. Owner workaround: turn RX
+		// off, change rate, then turn RX on. Same caveat applies to UI-driven changes.
+		private void handleDdcSampleRateEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length < 1)
+			{
+				// No-args query: send both RX1 and RX2
+				sendTextFrame("ddc_sample_rate_ex:0," + consoleThreadSafe.SampleRateRX1 + ";");
+				sendTextFrame("ddc_sample_rate_ex:1," + consoleThreadSafe.SampleRateRX2 + ";");
+				return;
+			}
+			if (!int.TryParse(args[0], out int rx)) return;
+			if (rx < 0 || rx > 1) return;
+
+			if (args.Length == 1)
+			{
+				int rate = rx == 0 ? consoleThreadSafe.SampleRateRX1 : consoleThreadSafe.SampleRateRX2;
+				sendTextFrame("ddc_sample_rate_ex:" + rx + "," + rate + ";");
+			}
+			else
+			{
+				if (!int.TryParse(args[1], out int rate)) return;
+				if (!(rate == 48000 || rate == 96000 || rate == 192000 || rate == 384000 || rate == 768000 || rate == 1536000)) return;
+				if (_console != null && !_console.IsSetupFormNull)
+				{
+					var rxIndex = rx + 1; // SetupForm uses 1-based RX index
+					_console.Invoke(new System.Windows.Forms.MethodInvoker(() =>
+					{
+						_console.SetupForm.SetHWSampleRate(rxIndex, rate);
+					}));
+					// Echo current state after SET (Thetis may apply asynchronously; the
+					// echo gives clients the value as it stands right now).
+					int echoRate = rx == 0 ? consoleThreadSafe.SampleRateRX1 : consoleThreadSafe.SampleRateRX2;
+					sendTextFrame("ddc_sample_rate_ex:" + rx + "," + echoRate + ";");
+				}
+			}
 		}
 
 		// ── Diversity null-suite (autonull / smartnull / ultranull) ──────────
@@ -6622,6 +6668,9 @@ namespace Thetis
                     case "diversity_ultranull_ex":
                         handleDiversityUltraNullEx(args);
                         break;
+                    case "ddc_sample_rate_ex":
+                        handleDdcSampleRateEx(args);
+                        break;
                     // [ThetisLink TL2-1] END
 
                 }
@@ -6725,6 +6774,9 @@ namespace Thetis
                         break;
                     case "diversity_gain_multi_ex":
                         handleDiversityGainMultiEx(new string[] { "" });
+                        break;
+                    case "ddc_sample_rate_ex":
+                        handleDdcSampleRateEx(null); // null-args triggers both-RX query
                         break;
                     // [ThetisLink TL2-1] END
                 }
