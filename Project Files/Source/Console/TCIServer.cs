@@ -966,7 +966,9 @@ namespace Thetis
             // Stock cap of 384 kHz was chosen for typical TCI-client bandwidth budgets.
             // TL2-1 clients support up to 1536 kHz hardware DDC rate; allow it when
             // ThetisLink-extensions is on. Vink UIT keeps the stock 384 kHz cap.
-            int cap = (consoleThreadSafe != null && consoleThreadSafe.ThetisLinkExtensionsEnabled) ? 1536000 : 384000;
+            // Direct _console read (no Invoke wrapper) — atomic bool, safe from any
+            // thread, avoids deadlock with UI-thread DSP-pipeline reconfigure.
+            int cap = (_console != null && _console.ThetisLinkExtensionsEnabled) ? 1536000 : 384000;
             return Math.Min(maxRate, cap);
             // [ThetisLink TL2-1] END
         }
@@ -6970,7 +6972,8 @@ namespace Thetis
 			if (sampleRate < 48000) sampleRate = 48000;
 			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
 			// Defense-in-depth cap: keep stock 384 kHz at vink UIT, allow 1536 kHz at vink AAN.
-			int cap = (consoleThreadSafe != null && consoleThreadSafe.ThetisLinkExtensionsEnabled) ? 1536000 : 384000;
+			// Direct _console read (no Invoke) — atomic bool, deadlock-safe from any thread.
+			int cap = (_console != null && _console.ThetisLinkExtensionsEnabled) ? 1536000 : 384000;
 			if (sampleRate > cap) sampleRate = cap;
 			// [ThetisLink TL2-1] END
 
@@ -7740,15 +7743,21 @@ namespace Thetis
 		}
 		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
 		// Server-level accessor for the ThetisLink-extensions checkbox state, used by
-		// cmaster.cs OnTCIRxIQOutSamples to gate the IQ-stream rate cap (384 kHz default,
-		// 1536 kHz when extensions are enabled). Reads the bool via the live Console field;
-		// safe to read from the DSP callback thread (atomic for bool on x64 .NET).
+		// cmaster.cs OnTCIRxIQOutSamples (high-frequency DSP-callback thread) to gate the
+		// IQ-stream rate cap (384 kHz default, 1536 kHz when extensions are enabled).
+		//
+		// CRITICAL: this MUST read `_console` directly. Going through the `console`
+		// property (line 7646) forces a UI-thread Invoke when called from a non-UI thread
+		// — and the cmaster DSP callback IS non-UI. During a runtime DDC-rate change the
+		// UI thread is busy reconfiguring the DSP pipeline; if our DSP-callback accessor
+		// blocks on Invoke at the same time, the two threads deadlock and Thetis crashes.
+		// (Owner-bug 2026-05-07.) Direct field access is safe because bool reads are
+		// atomic on x64 .NET — no Invoke needed for a single-bool snapshot.
 		public bool ThetisLinkExtensionsEnabled
 		{
 			get
 			{
-				var c = console;
-				return c != null && c.ThetisLinkExtensionsEnabled;
+				return _console != null && _console.ThetisLinkExtensionsEnabled;
 			}
 		}
 		// [ThetisLink TL2-1] END
