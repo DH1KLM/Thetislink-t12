@@ -3109,6 +3109,9 @@ namespace Thetis
 						foreach (float offset in offsets)
 						{
 							if (listener.m_disconnected || c == null || c.IsDisposed) return;
+							float emittedPhase = 0f;
+							float emittedGain = 1f;
+							bool emittedIsRx1Ref = false;
 							c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
 							{
 								if (isPhase)
@@ -3117,21 +3120,41 @@ namespace Thetis
 									while (phase > 180f) phase -= 360f;
 									while (phase < -180f) phase += 360f;
 									c.CATDiversityPhase = (decimal)phase;
+									emittedPhase = phase;
 								}
 								else
 								{
 									float gainDb = bestGainDb + offset;
 									decimal gain = (decimal)Math.Pow(10.0, gainDb / 20.0);
 									gain = Math.Max(0.01m, Math.Min(10m, gain));
+									emittedIsRx1Ref = c.DiversityRXRef;
 									if (c.diversityForm != null)
 									{
-										if (c.DiversityRXRef)
+										if (emittedIsRx1Ref)
 											c.diversityForm.DiversityR2Gain = gain;
 										else
 											c.diversityForm.DiversityGain = gain;
 									}
+									emittedGain = (float)gain;
 								}
 							}));
+
+							// Live circle-position broadcast — emit per-step phase/gain so
+							// the calling client sees the algorithm's tuning trajectory.
+							if (!listener.m_disconnected)
+							{
+								if (isPhase)
+								{
+									listener.sendTextFrame("diversity_phase_ex:" + ((int)(emittedPhase * 100f)) + ";");
+								}
+								else
+								{
+									int nonRefRx = emittedIsRx1Ref ? 1 : 0;
+									int refRx = emittedIsRx1Ref ? 0 : 1;
+									listener.sendTextFrame("diversity_gain_ex:" + nonRefRx + "," + ((int)(emittedGain * 1000f)) + ";");
+									listener.sendTextFrame("diversity_gain_ex:" + refRx + ",1000;");
+								}
+							}
 
 							System.Threading.Thread.Sleep(settleMs);
 
@@ -3160,22 +3183,35 @@ namespace Thetis
 							{
 								c.CATDiversityPhase = (decimal)bestPhase;
 							}));
+							if (!listener.m_disconnected)
+								listener.sendTextFrame("diversity_phase_ex:" + ((int)(bestPhase * 100f)) + ";");
 						}
 						else
 						{
 							bestGainDb += roundBestValue;
+							float bestGainEmit = 1f;
+							bool isRx1RefEmit = false;
 							c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
 							{
 								decimal gain = (decimal)Math.Pow(10.0, bestGainDb / 20.0);
 								gain = Math.Max(0.01m, Math.Min(10m, gain));
+								isRx1RefEmit = c.DiversityRXRef;
 								if (c.diversityForm != null)
 								{
-									if (c.DiversityRXRef)
+									if (isRx1RefEmit)
 										c.diversityForm.DiversityR2Gain = gain;
 									else
 										c.diversityForm.DiversityGain = gain;
 								}
+								bestGainEmit = (float)gain;
 							}));
+							if (!listener.m_disconnected)
+							{
+								int nonRefRx = isRx1RefEmit ? 1 : 0;
+								int refRx = isRx1RefEmit ? 0 : 1;
+								listener.sendTextFrame("diversity_gain_ex:" + nonRefRx + "," + ((int)(bestGainEmit * 1000f)) + ";");
+								listener.sendTextFrame("diversity_gain_ex:" + refRx + ",1000;");
+							}
 						}
 
 						if (roundBestSmeter < bestSmeter)
@@ -3272,15 +3308,20 @@ namespace Thetis
 						{
 							c.CATDiversityPhase = (decimal)p;
 						}));
+						// Live circle-position broadcast — TL-26 used m_server.BroadcastDiversityPhase
+						// here; we have no equivalent helper, so emit directly to the calling client.
+						if (!listener.m_disconnected)
+							listener.sendTextFrame("diversity_phase_ex:" + ((int)(p * 100f)) + ";");
 					};
 
 					Action<float> setGain = (g) =>
 					{
 						g = Math.Max(0.01f, Math.Min(10f, g));
 						if (listener.m_disconnected || c == null || c.IsDisposed) return;
+						bool isRx1Ref = false;
 						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
 						{
-							bool isRx1Ref = c.DiversityRXRef;
+							isRx1Ref = c.DiversityRXRef;
 							if (c.diversityForm != null)
 							{
 								if (isRx1Ref)
@@ -3289,6 +3330,14 @@ namespace Thetis
 									c.diversityForm.DiversityGain = (decimal)g;
 							}
 						}));
+						// Live broadcast: non-ref RX gets g, ref RX always 1.000 (per TL-26 convention).
+						if (!listener.m_disconnected)
+						{
+							int nonRefRx = isRx1Ref ? 1 : 0;
+							int refRx = isRx1Ref ? 0 : 1;
+							listener.sendTextFrame("diversity_gain_ex:" + nonRefRx + "," + ((int)(g * 1000f)) + ";");
+							listener.sendTextFrame("diversity_gain_ex:" + refRx + ",1000;");
+						}
 					};
 
 					Func<float> readAvg = () =>
@@ -3485,15 +3534,20 @@ namespace Thetis
 						{
 							c.CATDiversityPhase = (decimal)p;
 						}));
+						// Live circle-position broadcast — TL-26 used m_server.BroadcastDiversityPhase
+						// here; we have no equivalent helper, so emit directly to the calling client.
+						if (!listener.m_disconnected)
+							listener.sendTextFrame("diversity_phase_ex:" + ((int)(p * 100f)) + ";");
 					};
 
 					Action<float> setGain = (g) =>
 					{
 						g = Math.Max(0.01f, Math.Min(10f, g));
 						if (listener.m_disconnected || c == null || c.IsDisposed) return;
+						bool isRx1Ref = false;
 						c.Invoke(new System.Windows.Forms.MethodInvoker(() =>
 						{
-							bool isRx1Ref = c.DiversityRXRef;
+							isRx1Ref = c.DiversityRXRef;
 							if (c.diversityForm != null)
 							{
 								if (isRx1Ref)
@@ -3502,6 +3556,14 @@ namespace Thetis
 									c.diversityForm.DiversityGain = (decimal)g;
 							}
 						}));
+						// Live broadcast: non-ref RX gets g, ref RX always 1.000 (per TL-26 convention).
+						if (!listener.m_disconnected)
+						{
+							int nonRefRx = isRx1Ref ? 1 : 0;
+							int refRx = isRx1Ref ? 0 : 1;
+							listener.sendTextFrame("diversity_gain_ex:" + nonRefRx + "," + ((int)(g * 1000f)) + ";");
+							listener.sendTextFrame("diversity_gain_ex:" + refRx + ",1000;");
+						}
 					};
 
 					Func<float> readAvg = () =>
