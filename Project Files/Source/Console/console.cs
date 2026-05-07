@@ -31459,7 +31459,13 @@ namespace Thetis
                 double Hdisp = Convert.ToDouble(Display.RXDisplayHigh) - dispWidth * dispMargin;
                 double freqJumpThresh = 0.5e6;  // definition of jumping far, e.g. with memory recall - causes a re-centering
 
-                if (!m_bIgnoreLimitsForZTB) // MW0LGE_21k9
+                // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
+                // Surgical guard: when TL2 extensions are active, skip Thetis' own
+                // re-center mutations (CentreFrequency = freq + rx1_osc = 0). TL-server
+                // owns the recenter strategy via ZZCN-toggle. Oscillator/RIT/sample-area/
+                // display update paths below this block remain unchanged.
+                if (!m_bIgnoreLimitsForZTB && !ThetisLinkExtensionsEnabled) // MW0LGE_21k9 + TL2-1
+                // [ThetisLink TL2-1] END
                 {
                     if (!ClickTuneDrag)
                     {
@@ -31547,7 +31553,11 @@ namespace Thetis
             }
             else
             {
-                if (!bCanFitInView && _click_tune_display && !rx1_spectrum_tune_drag)
+                // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
+                // Surgical guard: skip high-zoom CentreFrequency fallback when TL2
+                // extensions are active. TL-server owns the recenter strategy.
+                if (!bCanFitInView && _click_tune_display && !rx1_spectrum_tune_drag && !ThetisLinkExtensionsEnabled)
+                // [ThetisLink TL2-1] END
                 {
                     // if filter is off the edge of view, most likey because of high zoom
                     CentreFrequency = freq;
@@ -32454,7 +32464,11 @@ namespace Thetis
                     double Hdisp = Convert.ToDouble(Display.RX2DisplayHigh) - dispWidth * dispMargin;
                     double freqJumpThresh = 0.5e6;  // Definition of jumping far, e.g. with memory recall - causes a re-centering
 
-                    if (!m_bIgnoreLimitsForZTB) // MW0LGE_21k9
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
+                    // Surgical guard for RX2 — analogous to RX1 path. TL-server owns
+                    // recenter strategy via ZZCP-toggle when extensions are active.
+                    if (!m_bIgnoreLimitsForZTB && !ThetisLinkExtensionsEnabled) // MW0LGE_21k9 + TL2-1
+                    // [ThetisLink TL2-1] END
                     {
                         if (!ClickTuneDrag)
                         {
@@ -32541,7 +32555,11 @@ namespace Thetis
                 }
                 else
                 {
-                    if (!bCanFitInView && _click_tune_rx2_display && !rx2_spectrum_tune_drag)
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
+                    // Surgical guard: skip RX2 high-zoom CentreRX2Frequency fallback when
+                    // TL2 extensions are active. TL-server owns the recenter strategy.
+                    if (!bCanFitInView && _click_tune_rx2_display && !rx2_spectrum_tune_drag && !ThetisLinkExtensionsEnabled)
+                    // [ThetisLink TL2-1] END
                     {
                         // if filter is off the edge of view, most likey because of high zoom
                         CentreRX2Frequency = freq;
