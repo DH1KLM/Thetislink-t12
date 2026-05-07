@@ -948,7 +948,13 @@ namespace Thetis
                     maxRate = m_hwSampleRate[i];
             }
 
-            return Math.Min(maxRate, 384000);
+            // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
+            // Stock cap of 384 kHz was chosen for typical TCI-client bandwidth budgets.
+            // TL2-1 clients support up to 1536 kHz hardware DDC rate; allow it when
+            // ThetisLink-extensions is on. Vink UIT keeps the stock 384 kHz cap.
+            int cap = (consoleThreadSafe != null && consoleThreadSafe.ThetisLinkExtensionsEnabled) ? 1536000 : 384000;
+            return Math.Min(maxRate, cap);
+            // [ThetisLink TL2-1] END
         }
 
         private unsafe void destroyRxAudioResamplerState(TCIRxAudioResamplerState state)
@@ -6891,7 +6897,11 @@ namespace Thetis
         private void sendIQSampleRate(int sampleRate)
         {
 			if (sampleRate < 48000) sampleRate = 48000;
-			if (sampleRate > 384000) sampleRate = 384000; // iq can only go up to that
+			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
+			// Defense-in-depth cap: keep stock 384 kHz at vink UIT, allow 1536 kHz at vink AAN.
+			int cap = (consoleThreadSafe != null && consoleThreadSafe.ThetisLinkExtensionsEnabled) ? 1536000 : 384000;
+			if (sampleRate > cap) sampleRate = cap;
+			// [ThetisLink TL2-1] END
 
 			sendTextFrame("iq_samplerate:" + sampleRate.ToString() + ";");
         }
@@ -7657,6 +7667,21 @@ namespace Thetis
 					return _console;
 			}
 		}
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
+		// Server-level accessor for the ThetisLink-extensions checkbox state, used by
+		// cmaster.cs OnTCIRxIQOutSamples to gate the IQ-stream rate cap (384 kHz default,
+		// 1536 kHz when extensions are enabled). Reads the bool via the live Console field;
+		// safe to read from the DSP callback thread (atomic for bool on x64 .NET).
+		public bool ThetisLinkExtensionsEnabled
+		{
+			get
+			{
+				var c = console;
+				return c != null && c.ThetisLinkExtensionsEnabled;
+			}
+		}
+		// [ThetisLink TL2-1] END
+
 		public TCPIPtciServer()
 		{
 			Init(DEFAULT_IP_END_POINT);
