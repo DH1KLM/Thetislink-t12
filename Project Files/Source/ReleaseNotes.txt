@@ -24,7 +24,9 @@ upstream lineage and contributor credits.
 The fork adds optional TCI extensions used by the ThetisLink remote-control client/server
 (https://github.com/cjenschede/ThetisLink). All extensions are gated behind the
 **"ThetisLink extensions"** checkbox in Setup -> Network -> IQ Stream. With the box
-unchecked, behaviour is byte-identical to upstream v2.10.3.15.
+unchecked, the TL2 `_ex` commands are inactive and the standard TCI behaviour from
+upstream v2.10.3.15 is preserved (build-environment and titlebar/About-tag changes
+listed below remain present in either mode).
 
 Fork additions (vink AAN):
 - [add] `tci_caps_ex` capability broadcast at TCI connect — advertises which TL-only `_ex`
