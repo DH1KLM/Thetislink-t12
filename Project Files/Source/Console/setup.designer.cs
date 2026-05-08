@@ -59082,7 +59082,9 @@ namespace Thetis
             this.groupBoxTS69.Controls.Add(this.labelTS661);
             this.groupBoxTS69.Controls.Add(this.chkTCISwapIQ);
             this.groupBoxTS69.Controls.Add(this.chkTCIAlwaysStreamIQ);
-            this.groupBoxTS69.Controls.Add(this.chkThetisLinkExtensions); // [ThetisLink TL2-1]
+            // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-05
+            this.groupBoxTS69.Controls.Add(this.chkThetisLinkExtensions);
+            // [ThetisLink TL2-1] END
             this.groupBoxTS69.Location = new System.Drawing.Point(386, 298);
             this.groupBoxTS69.Name = "groupBoxTS69";
             this.groupBoxTS69.Size = new System.Drawing.Size(330, 99);
