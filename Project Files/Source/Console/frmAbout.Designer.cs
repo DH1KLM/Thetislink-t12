@@ -331,7 +331,9 @@
             this.MinimizeBox = false;
             this.Name = "frmAbout";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
-            this.Text = "About Thetis";
+            // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-08
+            this.Text = "About Thetis (PA3GHM TL2-1 fork)";
+            // [ThetisLink TL2-1] END
             this.ResumeLayout(false);
             this.PerformLayout();
 

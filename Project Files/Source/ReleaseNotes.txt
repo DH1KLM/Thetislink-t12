@@ -14,6 +14,40 @@ This repo will no longer be updated or monitored.
 EDIT: actually v2.10.3.15 will be the last ;)
 
 
+## v2.10.3.15-TL2-1 - ThetisLink TL2-1 fork (PA3GHM / cjenschede)
+
+This is a downstream fork of v2.10.3.15 by Chiron Jenschede (PA3GHM), maintained at
+https://github.com/cjenschede/Thetis on branch `thetislink-tl2`. All fork modifications are
+licensed under GPL-2.0-or-later. See NOTICE.md and ATTRIBUTION.md in the repo root for
+upstream lineage and contributor credits.
+
+The fork adds optional TCI extensions used by the ThetisLink remote-control client/server
+(https://github.com/cjenschede/ThetisLink). All extensions are gated behind the
+**"ThetisLink extensions"** checkbox in Setup -> Network -> IQ Stream. With the box
+unchecked, behaviour is byte-identical to upstream v2.10.3.15.
+
+Fork additions (vink AAN):
+- [add] `tci_caps_ex` capability broadcast at TCI connect — advertises which TL-only `_ex`
+  commands the build supports, so clients can mode-detect.
+- [add] `rx_filter_preset_ex` push + initial-burst — tracks the F1..VAR2/NONE filter-preset
+  index per RX (filter-bandwidth alone does not capture this).
+- [add] Diversity TCI suite: `diversity_enable_ex`, `diversity_source_ex`, `diversity_ref_ex`,
+  `diversity_phase_ex`, `diversity_gain_ex`, `diversity_gain_multi_ex`, `diversity_autonull_ex`,
+  `diversity_smartnull_ex`, `diversity_ultranull_ex` plus live circle-position broadcast for
+  remote tuning visualisation.
+- [add] `auto_recenter_ex` capability — when advertised, lets a TCI client take over the DDC
+  recenter logic. The fork's own recenter is suppressed in this mode (surgical guard preserves
+  jump-recenter for A<->B swap, memory-recall and band-switch).
+- [add] `ddc_sample_rate_ex` push (per-RX) on rate-change so remote clients can resync DDC.
+- [add] IQ stream cap relaxed from 384 kHz to 1536 kHz when extensions are on (stock cap
+  applies when off).
+
+Build-environment fix (independent of vink state):
+- [fix] PortAudio vcxproj PlatformToolset bumped from v145 to v143 so the standard VS 2022
+  BuildTools install can compile the lib without an extra toolset download. No runtime
+  behaviour change vs upstream.
+
+
 ## v2.10.3.15 - Change Log
 - [add] option to allow smearing of waterfalls (default off), Setup->Appearance->General
 	Some ctun off users wanted the old display method even though a smeared waterfall is pointless new data, and the old data is now incorrectly aligned so is also pointless.
