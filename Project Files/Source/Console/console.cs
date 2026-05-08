@@ -31459,18 +31459,26 @@ namespace Thetis
                 double Hdisp = Convert.ToDouble(Display.RXDisplayHigh) - dispWidth * dispMargin;
                 double freqJumpThresh = 0.5e6;  // definition of jumping far, e.g. with memory recall - causes a re-centering
 
-                // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
-                // Surgical guard: when TL2 extensions are active, skip Thetis' own
-                // re-center mutations (CentreFrequency = freq + rx1_osc = 0). TL-server
-                // owns the recenter strategy via ZZCN-toggle. Oscillator/RIT/sample-area/
-                // display update paths below this block remain unchanged.
-                if (!m_bIgnoreLimitsForZTB && !ThetisLinkExtensionsEnabled) // MW0LGE_21k9 + TL2-1
+                // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-08
+                // Surgical guard v2 (per AI-3 owner-smoke-test diagnose 2026-05-08):
+                // de eerste versie skipte het hele auto-recenter blok bij vink-aan, maar
+                // dat brak A↔B-swap, memory-recall en band-switch — grote VFO-jumps
+                // werden niet door Thetis gerecenterd waardoor sample-area-clamp daaronder
+                // de VFO naar DDC-rand klemde (~92% half-bw = ~177 kHz drift per swap).
+                //
+                // Fix: outer guard terug naar !m_bIgnoreLimitsForZTB (zoals upstream);
+                // alleen de SMOOTH-SCROLL paden krijgen inner !ThetisLinkExtensionsEnabled.
+                // Jump-recenter (>0.5 MHz of buiten display) MOET doorlopen onder vink-aan
+                // zodat Thetis' eigen recenter de grote sprong opvangt; TL-server doet
+                // daarna de fijn-recenter via ZZCN-toggle voor doorlopende kleine tunes.
+                if (!m_bIgnoreLimitsForZTB) // MW0LGE_21k9 (TL2-1: outer guard restored)
                 // [ThetisLink TL2-1] END
                 {
                     if (!ClickTuneDrag)
                     {
                         if (((-rx1_osc) - Lmargin) < Ldisp || ((-rx1_osc) + Hmargin) > Hdisp) // re-center if we've jumped far
                         {
+                            // [TL2-1]: jump-recenter MOET doorlopen — A↔B/memory-recall/band-switch
                             CentreFrequency = freq;
                             rx1_osc = 0.0;
                         }
@@ -31482,18 +31490,21 @@ namespace Thetis
                             //-W2PA If we tune beyond the display limits, re-center or scroll display, and keep going.  Original code above just stops tuning at edges.
                             if (((-rx1_osc) - Lmargin) < (Ldisp - freqJumpThresh) || ((-rx1_osc) + Hmargin) > (Hdisp + freqJumpThresh)) // re-center if we've jumped far
                             {
+                                // [TL2-1]: jump-recenter (drag-pad) MOET doorlopen
                                 CentreFrequency = freq;
                                 rx1_osc = 0.0;
                             }
                             else  // not a jump - more like tuning
-                            if (!bLimitToSpectral && (((-rx1_osc) - Lmargin) < Ldisp)) // scroll the spectrum display smoothly at the edge and keep going
+                            // [ThetisLink TL2-1]: smooth-scroll-LEFT — SKIP onder vink-aan; TL-server doet ZZCN-recenter
+                            if (!ThetisLinkExtensionsEnabled && !bLimitToSpectral && (((-rx1_osc) - Lmargin) < Ldisp)) // scroll the spectrum display smoothly at the edge and keep going
                             {
                                 double adjustFreq = Ldisp - ((-rx1_osc) - Lmargin);
                                 CentreFrequency -= adjustFreq * 1e-6;
                                 rx1_osc -= adjustFreq;
                             }
                             else
-                            if (!bLimitToSpectral && (((-rx1_osc) + Hmargin) > Hdisp))
+                            // [ThetisLink TL2-1]: smooth-scroll-RIGHT — SKIP onder vink-aan
+                            if (!ThetisLinkExtensionsEnabled && !bLimitToSpectral && (((-rx1_osc) + Hmargin) > Hdisp))
                             {
                                 double adjustFreq = ((-rx1_osc) + Hmargin) - Hdisp;
                                 CentreFrequency += adjustFreq * 1e-6;
@@ -31553,10 +31564,13 @@ namespace Thetis
             }
             else
             {
-                // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
-                // Surgical guard: skip high-zoom CentreFrequency fallback when TL2
-                // extensions are active. TL-server owns the recenter strategy.
-                if (!bCanFitInView && _click_tune_display && !rx1_spectrum_tune_drag && !ThetisLinkExtensionsEnabled)
+                // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-08
+                // Surgical guard v2: high-zoom fallback un-guarded — dit is een jump-style
+                // recenter (filter is off-view bij hoge zoom), dezelfde semantiek als A↔B
+                // swap. Vink-aan gedrag: laat Thetis recenteren; TL-server doet daarna
+                // verfijning. Eerdere vink-aan-skip van deze fallback liet filter buiten
+                // visible window staan = onbruikbaar voor owner.
+                if (!bCanFitInView && _click_tune_display && !rx1_spectrum_tune_drag)
                 // [ThetisLink TL2-1] END
                 {
                     // if filter is off the edge of view, most likey because of high zoom
@@ -32464,10 +32478,12 @@ namespace Thetis
                     double Hdisp = Convert.ToDouble(Display.RX2DisplayHigh) - dispWidth * dispMargin;
                     double freqJumpThresh = 0.5e6;  // Definition of jumping far, e.g. with memory recall - causes a re-centering
 
-                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
-                    // Surgical guard for RX2 — analogous to RX1 path. TL-server owns
-                    // recenter strategy via ZZCP-toggle when extensions are active.
-                    if (!m_bIgnoreLimitsForZTB && !ThetisLinkExtensionsEnabled) // MW0LGE_21k9 + TL2-1
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-08
+                    // Surgical guard v2 voor RX2 — symmetrisch aan RX1. Per AI-3
+                    // owner-smoke-test diagnose 2026-05-08: outer guard terug naar
+                    // upstream; alleen smooth-scroll paden krijgen !ThetisLinkExtensionsEnabled.
+                    // Jump-recenter (A↔B/memory-recall/band-switch) MOET doorlopen.
+                    if (!m_bIgnoreLimitsForZTB) // MW0LGE_21k9 (TL2-1: outer guard restored)
                     // [ThetisLink TL2-1] END
                     {
                         if (!ClickTuneDrag)
@@ -32475,6 +32491,7 @@ namespace Thetis
                             //-W2PA Original 3.4.1 code
                             if (((-rx2_osc) - Lmargin) < Ldisp || ((-rx2_osc) + Hmargin) > Hdisp) // re-center if we've jumped far
                             {
+                                // [TL2-1]: jump-recenter MOET doorlopen
                                 CentreRX2Frequency = freq;
                                 rx2_osc = 0.0;
                             }
@@ -32486,17 +32503,20 @@ namespace Thetis
                                 //-W2PA If we tune beyond the display limits, re-center or scroll display, and keep going.  Original code above just stops tuning at edges.
                                 if (((-rx2_osc) - Lmargin) < (Ldisp - freqJumpThresh) || ((-rx2_osc) + Hmargin) > (Hdisp + freqJumpThresh)) // re-center if we've jumped far
                                 {
+                                    // [TL2-1]: jump-recenter (drag-pad) MOET doorlopen
                                     CentreRX2Frequency = freq;
                                     rx2_osc = 0.0;
                                 }
                                 else  // not a jump - more like tuning
-                                if (!bLimitToSpectral && (((-rx2_osc) - Lmargin) < Ldisp)) // scroll the spectrum display smoothly at the edge and keep going
+                                // [ThetisLink TL2-1]: smooth-scroll-LEFT — SKIP onder vink-aan
+                                if (!ThetisLinkExtensionsEnabled && !bLimitToSpectral && (((-rx2_osc) - Lmargin) < Ldisp)) // scroll the spectrum display smoothly at the edge and keep going
                                 {
                                     double adjustFreq = Ldisp - ((-rx2_osc) - Lmargin);
                                     CentreRX2Frequency -= adjustFreq * 1.0e-6;
                                     rx2_osc -= adjustFreq;
                                 }
-                                else if (!bLimitToSpectral && (((-rx2_osc) + Hmargin) > Hdisp))
+                                // [ThetisLink TL2-1]: smooth-scroll-RIGHT — SKIP onder vink-aan
+                                else if (!ThetisLinkExtensionsEnabled && !bLimitToSpectral && (((-rx2_osc) + Hmargin) > Hdisp))
                                 {
                                     double adjustFreq = ((-rx2_osc) + Hmargin) - Hdisp;
                                     CentreRX2Frequency += adjustFreq * 1.0e-6;
@@ -32555,10 +32575,11 @@ namespace Thetis
                 }
                 else
                 {
-                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
-                    // Surgical guard: skip RX2 high-zoom CentreRX2Frequency fallback when
-                    // TL2 extensions are active. TL-server owns the recenter strategy.
-                    if (!bCanFitInView && _click_tune_rx2_display && !rx2_spectrum_tune_drag && !ThetisLinkExtensionsEnabled)
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-08
+                    // Surgical guard v2: high-zoom RX2 fallback un-guarded — symmetrisch
+                    // aan RX1. Jump-style recenter (filter off-view) moet doorlopen, anders
+                    // staat filter buiten visible window.
+                    if (!bCanFitInView && _click_tune_rx2_display && !rx2_spectrum_tune_drag)
                     // [ThetisLink TL2-1] END
                     {
                         // if filter is off the edge of view, most likey because of high zoom
