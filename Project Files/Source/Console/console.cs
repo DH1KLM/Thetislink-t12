@@ -31460,7 +31460,7 @@ namespace Thetis
                 double freqJumpThresh = 0.5e6;  // definition of jumping far, e.g. with memory recall - causes a re-centering
 
                 // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-08
-                // Surgical guard v2 (per AI-3 owner-smoke-test diagnose 2026-05-08):
+                // Surgical guard v2 (per owner-smoke-test diagnose 2026-05-08):
                 // de eerste versie skipte het hele auto-recenter blok bij vink-aan, maar
                 // dat brak A↔B-swap, memory-recall en band-switch — grote VFO-jumps
                 // werden niet door Thetis gerecenterd waardoor sample-area-clamp daaronder
@@ -32479,7 +32479,7 @@ namespace Thetis
                     double freqJumpThresh = 0.5e6;  // Definition of jumping far, e.g. with memory recall - causes a re-centering
 
                     // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-08
-                    // Surgical guard v2 voor RX2 — symmetrisch aan RX1. Per AI-3
+                    // Surgical guard v2 voor RX2 — symmetrisch aan RX1. Per
                     // owner-smoke-test diagnose 2026-05-08: outer guard terug naar
                     // upstream; alleen smooth-scroll paden krijgen !ThetisLinkExtensionsEnabled.
                     // Jump-recenter (A↔B/memory-recall/band-switch) MOET doorlopen.
