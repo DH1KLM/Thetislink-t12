@@ -2731,12 +2731,14 @@ namespace Thetis
 			caps.Add("diversity_smartnull_ex");
 			caps.Add("diversity_ultranull_ex");
 			caps.Add("ddc_sample_rate_ex");
-			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07
-			// Advertise-only cap: signals that Thetis' own re-center logic in
-			// console.cs (RX1 ~31450-31497, RX2 ~32457-32493) is disabled while
-			// ThetisLinkExtensionsEnabled is true. The TL-server takes ownership of
-			// recenter via ZZCN/ZZCP toggle. There is NO `auto_recenter_ex:` TCI
-			// command handler — server gates the feature on `has_cap("auto_recenter_ex")`.
+			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-07; comment-update 2026-05-08
+			// Advertise-only cap: signals that Thetis' own re-center smooth-scroll
+			// logic in console.cs (RX1 ~31470-31503, RX2 ~32487-32536) is disabled
+			// while ThetisLinkExtensionsEnabled is true (jump-recenter blijft actief).
+			// The TL-server takes ownership of recenter via ZZCN/ZZCO toggle —
+			// ZZCN voor RX1, ZZCO voor RX2 (NIET ZZCP, dat is compander).
+			// There is NO `auto_recenter_ex:` TCI command handler — server gates the
+			// feature on `has_cap("auto_recenter_ex")`.
 			caps.Add("auto_recenter_ex");
 			// [ThetisLink TL2-1] END
 
