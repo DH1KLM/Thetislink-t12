@@ -14,21 +14,30 @@ This repo will no longer be updated or monitored.
 EDIT: actually v2.10.3.15 will be the last ;)
 
 
-## v2.10.3.15-TL2-1 - ThetisLink TL2-1 fork (PA3GHM / cjenschede)
+## Thetis v2.10.3.15 + TL2-1 — ThetisLink fork additions (PA3GHM / cjenschede)
 
-This is a downstream fork of v2.10.3.15 by Chiron Jenschede (PA3GHM), maintained at
-https://github.com/cjenschede/Thetis on branch `thetislink-tl2`. All fork modifications are
-licensed under GPL-2.0-or-later. See NOTICE.md and ATTRIBUTION.md in the repo root for
-upstream lineage and contributor credits.
+This build contains:
 
-The fork adds optional TCI extensions used by the ThetisLink remote-control client/server
-(https://github.com/cjenschede/ThetisLink). All extensions are gated behind the
-**"ThetisLink extensions"** checkbox in Setup -> Network -> IQ Stream. With the box
-unchecked, the TL2 `_ex` commands are inactive and the standard TCI behaviour from
-upstream v2.10.3.15 is preserved (build-environment and titlebar/About-tag changes
-listed below remain present in either mode).
+- The **complete upstream v2.10.3.15 release by ramdor** (MW0LGE / Richard
+  Samphire), which itself includes the v2.10.3.14 release. Both upstream change
+  logs are preserved unchanged below for reference (see the **v2.10.3.15 -
+  Change Log** and **v2.10.3.14 - Change Log** sections).
+- The ThetisLink TL2-1 fork additions documented in this section.
 
-Fork additions (vink AAN):
+The fork is maintained at https://github.com/cjenschede/Thetis on branch
+`thetislink-tl2`. All fork modifications are licensed under GPL-2.0-or-later.
+See NOTICE.md and ATTRIBUTION.md in the repository root for upstream lineage
+and contributor credits.
+
+The fork adds optional TCI extensions used by the ThetisLink remote-control
+client/server (https://github.com/cjenschede/ThetisLink). All extensions are
+gated behind the **"ThetisLink extensions"** checkbox in Setup -> Network ->
+IQ Stream. With the box unchecked, the TL2 `_ex` commands are inactive and
+the standard TCI behaviour from upstream v2.10.3.15 is preserved (build
+environment and titlebar/About-tag changes listed below remain present in
+either mode).
+
+TL2-1 additions on top of v2.10.3.15 (active when the checkbox is on):
 - [add] `tci_caps_ex` capability broadcast at TCI connect — advertises which TL-only `_ex`
   commands the build supports, so clients can mode-detect.
 - [add] `rx_filter_preset_ex` push + initial-burst — tracks the F1..VAR2/NONE filter-preset
