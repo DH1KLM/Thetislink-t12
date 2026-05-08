@@ -896,6 +896,13 @@
     <Compile Include="xvtr.cs">
       <SubType>Form</SubType>
     </Compile>
+    <!-- [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-08
+         Copy ReleaseNotes.txt from Source/ to bin output so frmReleaseNotes can find it. -->
+    <None Include="..\ReleaseNotes.txt">
+      <Link>ReleaseNotes.txt</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- [ThetisLink TL2-1] END -->
     <None Include="Resources\thetis-logo2.png" />
     <None Include="Resources\ob_power.png" />
     <None Include="Resources\ob_circle.png" />
