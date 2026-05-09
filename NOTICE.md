@@ -29,9 +29,11 @@ as the base point of this fork.
   [ThetisLink](https://github.com/cjenschede/ThetisLink) remote-control client.
   All ThetisLink-specific TCI extensions are gated behind a single
   "ThetisLink extensions" checkbox in `Setup > Network > IQ Stream`.
-  With the checkbox **off**, this build behaves identically to upstream
-  v2.10.3.15. With the checkbox **on**, additional `_ex` TCI commands and
-  push notifications are enabled for ThetisLink clients.
+  With the checkbox **off**, the stock TCI extension behavior of upstream
+  v2.10.3.15 is preserved (the fork still carries its own build tag,
+  release notes and About metadata). With the checkbox **on**, additional
+  `_ex` TCI commands and push notifications are enabled for ThetisLink
+  clients.
 - **Modifications:** see per-file SPDX headers and modification markers; the
   cumulative diff against `v2.10.3.15` is the complete set of fork changes.
 - **License of modifications:** GNU General Public License, version 2 or later

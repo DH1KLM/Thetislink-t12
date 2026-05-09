@@ -1,3 +1,26 @@
+> # ThetisLink TL2-1 fork
+>
+> This repository is a **fork** of [ramdor/Thetis](https://github.com/ramdor/Thetis)
+> on branch `thetislink-tl2`, maintained by **PA3GHM (cjenschede)** as the
+> companion application for the [ThetisLink](https://github.com/cjenschede/ThetisLink)
+> remote-control client.
+>
+> All fork-specific modifications are gated behind the **"ThetisLink extensions"**
+> checkbox in `Setup > Network > IQ Stream`. With the checkbox off, the stock TCI
+> extension behaviour of upstream v2.10.3.15 is preserved (the fork still carries
+> its own build tag, release notes and About metadata). The fork build identifies
+> as **`PA3GHM TL2-1`** in the title bar.
+>
+> - **Upstream:** https://github.com/ramdor/Thetis (archived 2 April 2026)
+> - **Base tag for this fork:** `v2.10.3.15`
+> - **Fork license:** GPL-2.0-or-later (same as upstream)
+> - **Fork details:** see `NOTICE.md` and `ATTRIBUTION.md`
+>
+> The original upstream `ReadMe.md` content from Richard Samphire follows below,
+> preserved unchanged for historical reference.
+
+---
+
 See LICENSE and LICENSE-DUAL-LICENSING for licensing details.
 
 # This project is now archived - 2nd April 2026

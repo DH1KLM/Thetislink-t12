@@ -1,4 +1,17 @@
-﻿namespace Thetis
+﻿//================================================================================================//
+// SPDX-License-Identifier: GPL-2.0-or-later                                                       //
+// ThetisLink TL2-1 fork modifications by PA3GHM (cjenschede), starting 2026-05-08.                //
+// All ThetisLink modifications are gated behind the "ThetisLink extensions" checkbox in           //
+// Setup > Network > IQ Stream. With the checkbox off, the stock TCI extension behavior of         //
+// upstream v2.10.3.15 is preserved (the fork still carries its own build tag, release notes and   //
+// About metadata).                                                                                //
+// See NOTICE.md and ATTRIBUTION.md in the repository root for fork details.                       //
+//                                                                                                 //
+// NOTE: this is a Windows-Forms-Designer-generated file. The TL2-1 additions below are flagged    //
+// with `// [ThetisLink TL2-1] BEGIN/END` markers so they can be re-applied if the designer        //
+// regenerates this file. Do NOT regenerate without preserving those markers.                      //
+//================================================================================================//
+namespace Thetis
 {
     partial class frmAbout
     {
