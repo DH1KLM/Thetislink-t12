@@ -1,166 +1,96 @@
-> # ThetisLink TL2-1 fork
->
-> This repository is a **fork** of [ramdor/Thetis](https://github.com/ramdor/Thetis)
-> on branch `thetislink-tl2`, maintained by **PA3GHM (cjenschede)** as the
-> companion application for the [ThetisLink](https://github.com/cjenschede/ThetisLink)
-> remote-control client.
->
-> All fork-specific modifications are gated behind the **"ThetisLink extensions"**
-> checkbox in `Setup > Network > IQ Stream`. With the checkbox off, the stock TCI
-> extension behaviour of upstream v2.10.3.15 is preserved (the fork still carries
-> its own build tag, release notes and About metadata). The fork build identifies
-> as **`PA3GHM TL2-1`** in the title bar.
->
-> - **Upstream:** https://github.com/ramdor/Thetis (archived 2 April 2026)
-> - **Base tag for this fork:** `v2.10.3.15`
-> - **Fork license:** GPL-2.0-or-later (same as upstream)
-> - **Fork details:** see `NOTICE.md` and `ATTRIBUTION.md`
->
-> The original upstream `ReadMe.md` content from Richard Samphire follows below,
-> preserved unchanged for historical reference.
+# Thetis — PA3GHM TL2-1 fork
 
----
+This repository is a **fork** of [ramdor/Thetis](https://github.com/ramdor/Thetis)
+maintained by **PA3GHM (cjenschede)** as the companion build for the
+[ThetisLink](https://github.com/cjenschede/ThetisLink) remote-control client.
 
-See LICENSE and LICENSE-DUAL-LICENSING for licensing details.
+The fork is actively maintained on branch [`thetislink-tl2`](https://github.com/cjenschede/Thetis/tree/thetislink-tl2).
+For the upstream `master` branch (a verbatim mirror of ramdor's archived tree),
+switch the branch selector to `master`.
 
-# This project is now archived - 2nd April 2026
+## Latest release
 
-This fork of the original Thetis, which I started tinkering with in 2019, has now been archived. I will not be performing maintenance or adding features to it for the foreseeable future. Whilst I may return to it from time to time for minor fixes and/or if I develop something for personal use that I feel may also benefit others, active development has stopped.
+**[`TL2-1`](https://github.com/cjenschede/Thetis/releases/tag/TL2-1)** — drop-in
+`Thetis.exe` + `ReleaseNotes.txt`, base [`v2.10.3.15`](https://github.com/ramdor/Thetis/releases/tag/v2.10.3.15)
+(2 May 2026, last release by ramdor / MW0LGE / Richard Samphire).
 
-There are a number of technical issues that would need to be addressed in order to take the project forward. The codebase still depends on an older .NET Framework version (4.8), which is increasingly outdated and is beginning to fall out of support with other libraries used by the project. Rendering is also based on SharpDX, which is itself an archived project. Although moving to a more modern rendering engine would be desirable, many suitable replacements do not properly support the older .NET Framework this fork relies on.
+## What this fork adds
 
-Work on multiple RX slices is also on hold, as that would require a rewrite of the display engine. Given that the current display engine is based on SharpDX, it would not seem prudent to invest that effort into an archived and outdated library.
+The fork adds TCI extensions used by ThetisLink, all gated behind the
+**"ThetisLink extensions"** checkbox in `Setup > Network > IQ Stream`:
 
-The project is gradually falling behind, and bringing it up to date would require a substantial amount of rework. I have therefore decided to archive this repository and focus my efforts elsewhere. Thetis is hopefully a better experience than it once was, and with recent milestones now reached, including TCI audio/IQ streaming, the voice keyer, and radio network/detection improvements, I feel this is a good point to call it "done".
+- `tci_caps_ex` — capability broadcast so clients auto-detect available extensions
+- `auto_recenter_ex` — server-side CTUN recenter (no round-trip)
+- `rx_filter_preset_ex` — per-RX filter preset push (F1..VAR2/NONE)
+- `ddc_sample_rate_ex` — per-RX DDC sample rate, up to 1536 kHz (stock cap is 384 kHz)
+- Diversity auto-null suite (Auto / Smart / Ultra) with live phase/gain circle broadcast
+- Push-based state updates that ThetisLink subscribes to
 
-Cheers to all who have enjoyed the ride, helped test, and found bugs. With the progression of AI, perhaps in a few years we will be able to ask it to 'modernise the project'. Time will tell.
+Build identifies as **`PA3GHM TL2-1`** next to the upstream version string in the
+title bar.
 
-73  
-MW0LGE - Richie
+With the **"ThetisLink extensions"** checkbox **off**, the stock TCI extension
+behaviour of upstream v2.10.3.15 is preserved (the fork still carries its own
+build tag, release notes and About metadata).
 
+## Installation
 
-# Latest Release v2.10.3.15 - 2nd May 2026
-https://github.com/ramdor/Thetis/releases/tag/v2.10.3.15
+From the [`TL2-1`](https://github.com/cjenschede/Thetis/releases/tag/TL2-1)
+release page:
 
-# v2.10.3.14 - 19th April 2026
-https://github.com/ramdor/Thetis/releases/tag/v2.10.3.14
+1. Download `Thetis.exe` and `ReleaseNotes.txt`
+2. Back up the originals in your existing Thetis installation folder (e.g. rename `Thetis.exe` to `Thetis-original.exe`)
+3. Drop in the fork files (overwrite)
+4. Start Thetis — verify the title bar shows `PA3GHM TL2-1`
 
-# v2.10.3.13 - 1st April 2026
-https://github.com/ramdor/Thetis/releases/tag/v2.10.3.13
+All other files (DLLs, database, settings) remain unchanged. Revert by
+restoring the backed-up originals.
 
-# Latest Release v2.10.3.5 December, 24th 2023
-https://github.com/ramdor/Thetis/releases/tag/v2.10.3.5
+## Upstream
 
-# 2.10.3.4 (2023-19-11)
-https://github.com/ramdor/Thetis/releases/tag/v2.10.3.4
+Original Thetis project by Richard Samphire (MW0LGE), maintained from 2019
+to 2 April 2026 when it was archived. The upstream releases (with full
+per-version change logs) are at:
 
-# 2.10.3.3 (2023-03-11)
-https://github.com/ramdor/Thetis/releases/tag/v2.10.3.3
+- Repository: <https://github.com/ramdor/Thetis>
+- Releases (per-version change logs): <https://github.com/ramdor/Thetis/releases>
+- Last upstream release: [v2.10.3.15](https://github.com/ramdor/Thetis/releases/tag/v2.10.3.15)
 
-# 2.10.3.2 (2023-03-11)
-https://github.com/ramdor/Thetis/releases/tag/v2.10.3.2
+Thetis itself derives from PowerSDR (FlexRadio) via OpenHPSDR. The full
+provenance chain is documented in [`ATTRIBUTION.md`](ATTRIBUTION.md); the
+fork notice and licensing scope are in [`NOTICE.md`](NOTICE.md).
 
-# 2.10.3.1 (2023-03-11)
-https://github.com/ramdor/Thetis/releases/tag/v2.10.3.1
+## License
 
-# 2.10.3 (2023-02-11)
-https://github.com/ramdor/Thetis/releases/tag/v2.10.3
+Distributed under **GNU General Public License v2.0-or-later**, same as
+upstream:
 
-# 2.10.2.2 (2023-13-10)
+- [`LICENSE`](LICENSE) — canonical GPLv2 text
+- [`LICENSE-DUAL-LICENSING`](LICENSE-DUAL-LICENSING) — Richard Samphire's
+  reservation on his own original contributions; does not extend to fork
+  modifications introduced here
+- [`NOTICE.md`](NOTICE.md) — fork notice
+- [`ATTRIBUTION.md`](ATTRIBUTION.md) — upstream lineage and contributor credits
 
-# 2.10.2.1 (2023-11-10)
+All fork modifications are licensed under GPL-2.0-or-later with no
+additional reservation.
 
-# 2.10.2 (2023-11-10)
+## Source diff against upstream
 
-# 2.10.0 (2023-19-06)
+Per-file SPDX headers and `[ThetisLink TL2-1] BEGIN/END` markers identify
+fork-modified sections. The cumulative diff against the upstream base tag is:
 
-# 2.9.0 (2022-03-04)
-See [ Thetis Change Log ](https://github.com/TAPR/OpenHPSDR-Thetis/blob/master/Thetis%20v2.9.0%20Change%20Log.pdf) for more details.
+```bash
+git diff v2.10.3.15..thetislink-tl2 --stat
+git log v2.10.3.15..thetislink-tl2 --oneline
+```
 
-# 2.8.11 (2020-20-10)
-See [ Thetis Change Log ](https://github.com/TAPR/OpenHPSDR-Thetis/blob/master/Thetis%20v2.8.11%20Change%20Log.pdf) for more details.
+## Companion application
 
-# 2.8.9 (2020-13-10)
-See [ Thetis Change Log ](https://github.com/TAPR/OpenHPSDR-Thetis/blob/master/Thetis%20v2.8.9%20Change%20Log.pdf) for more details.
+This fork is the companion build for **ThetisLink v2.0.0** — a remote-control
+Rust application for ANAN 7000DLE + Thetis SDR over the network with audio,
+spectrum, PTT and full radio control via TCI WebSocket.
 
-# 2.8.8 (2020-10-10)
-See [ Thetis Change Log ](https://github.com/TAPR/OpenHPSDR-Thetis/blob/master/Thetis%20v2.8.8%20Change%20Log.pdf) for more details.
+Repo: <https://github.com/cjenschede/ThetisLink>
 
-# 2.8.7 (2020-10-7)
-See [ Thetis Change Log ](https://github.com/TAPR/OpenHPSDR-Thetis/blob/master/Thetis%20v2.8.7%20Change%20Log.pdf) for more details.
-
-# 2.8.6 (2020-10-6)
-See [ Thetis Change Log ](https://github.com/TAPR/OpenHPSDR-Thetis/blob/master/Thetis%20v2.8.6%20Change%20Log.pdf) for more details.
-
-# 2.7.0 Not Officially Released
-
-# 2.6.9 (2020-1-24)
-See [ Thetis Change Log ](https://github.com/TAPR/OpenHPSDR-Thetis/blob/master/Thetis%20v2.6.9%20Change%20Log.pdf) for more details.
-
-# 2.6.8 (2019-11-3)
-See [ Thetis Change Log ](https://github.com/TAPR/OpenHPSDR-Thetis/blob/master/Thetis%20v2.6.8%20Change%20Log.pdf) for more details.
-
-# 2.6.7 (2019-4-29)
-- fixed bug where the VOX/DEXP LookAhead feature was enabled when VOX/DEXP was not.
-- corrected compatiblity issue with the ANAN-10E. This requires new firmare to be flashed. v10.3
-- corrected the Spectrum and Histogram diplay during transmit
-
-# 2.6.6 (2019-4-21)
-- corrects issue with EU region using commas
-- corrects issue with having out of band frequency on startup
-- fixed transmit filter not being displayed when using split
-
-# 2.6.5 (2019-4-18)
-- corrected issue with console remaining open after exiting Thetis
-- fixed problem of program crashing when recording while transmitting
-- fixed problem with program crashing when receiving a bad packet
-
-# 2.6.4 (2019-4-13)
-- improved VOX/DEXP features and performance
-- QSK cabibility for the ANAN-200D, 7000DLE, and 8000DLE models
-- fixed VAC1 startup problem
-- fixed VAC2 resampler problem
-- added option to use VAC2 on split
-- improved TX-RX and RX-TX transistion on voice modes
-- transverter T/R relay bug fixed
-- added control for BYPS-EXT1-XVTR RX ANT for 7000DLE
-
-  * see "Release Notes for 2-6-4.docx" for detailed information.
-
-# 2.6.0 (2018-4-10)
-- added diagnostic LED array
-- divided open collector controls into 3 groups (HF-VHF-SWL)
-- bug fix for step tune using MIDI
-
-# 2.5.9 (2018-3-29)
-- changed "MDECAY" constant to 0.99 in netInterface.c
-- added 2Hz step tune choice
-- corrected duplicate db import dialogs
-- modified behavior of sequence errors so that sequence errors are ignored for seq 0
-- changes to VAC includes tooltips for various controls, fix for the Output Ringbuffer latency Monitor control not working, and added the ability to reset the diagnostics
-- forced BPF1 into ByPass during transmit if PureSignal is enabled for Orion MkII boards only
-
-# 2.5.8 (2018-3-25)
-- changed "MDECAY" constant to 0.9 in netInterface.c
-- fixes for VFO A&B Lock 
-- NB/NB2 is turned OFF while transmitting when DUP is enabled
-- Added 2kHz Tune Step
-- Changed ANF behavior so that it is disabled when in CW mode
-- Removed the 750Hz CW filter and added a 150Hz CW filter
-- Increased display buffer to support larger than 4k displays
-
-# 2.5.7 (2018-3-25)
-- spectrum roll-off adjusted to clip 4%
-- calls to PeakFwdPower(…) and PeakRevPower(…) moved from netInterface.c to network.c
-- skin graphics added for chkRxAnt and chkVFOBLock controls
-
-# 2.5.6 (2018-3-25)
-- added MIDI/CAT updates
-- added independent VFO Locks
-
-# 2.5.5 (2018-3-24)
-- added support for ANAN-7000DLE
-- added 'Rx Ant' support
-
-# 2.5.4 (2018-3-22)
-- added Audio Adaptive Variable Resampler with monitor tools
+73 de PA3GHM
