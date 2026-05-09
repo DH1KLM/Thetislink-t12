@@ -39,7 +39,13 @@ Cheers to all who have enjoyed the ride, helped test, and found bugs. With the p
 MW0LGE - Richie
 
 
-# Latest Release v2.10.3.13 - 1st April 2026
+# Latest Release v2.10.3.15 - 2nd May 2026
+https://github.com/ramdor/Thetis/releases/tag/v2.10.3.15
+
+# v2.10.3.14 - 19th April 2026
+https://github.com/ramdor/Thetis/releases/tag/v2.10.3.14
+
+# v2.10.3.13 - 1st April 2026
 https://github.com/ramdor/Thetis/releases/tag/v2.10.3.13
 
 # Latest Release v2.10.3.5 December, 24th 2023
