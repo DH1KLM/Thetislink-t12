@@ -15005,7 +15005,39 @@ namespace Thetis
         public bool ThetisLinkExtensionsEnabled
         {
             get { return thetislink_extensions_enabled; }
-            set { thetislink_extensions_enabled = value; }
+            set
+            {
+                bool prev = thetislink_extensions_enabled;
+                thetislink_extensions_enabled = value;
+                // [TL2-1 2026-05-14] If extensions are disabled, no client can be
+                // a valid recenter-owner anymore — clear the flag so smooth-scroll
+                // returns to upstream behaviour immediately.
+                if (!value) thetislink_recenter_owner_active = false;
+                // [TL2-1 2026-05-14] Push a fresh caps frame to all connected TCI
+                // listeners so the TL-server drops cached caps and stops driving
+                // _ex features (specifically: no more CTUN-recenter after the
+                // checkbox flips off). Skip if state didn't actually change.
+                if (prev != value)
+                {
+                    try { m_tcpTCIServer?.BroadcastCapsRefresh(); }
+                    catch { /* TCI server may not be up yet; safe to ignore */ }
+                }
+            }
+        }
+        // [ThetisLink TL2-1] END
+
+        // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+        // Set by TCPIPtciServer when a TCI client claims auto-recenter ownership via
+        // `auto_recenter_owner_ex:true;` (and cleared when the last owner releases or
+        // disconnects). The smooth-scroll-recenter guards in this file (RX1 ~31490+
+        // ~31499, RX2 ~32503+ ~32510) skip Thetis' own recenter ONLY when extensions
+        // are enabled AND an owner is active — otherwise Thetis falls back to its
+        // upstream smooth-scroll behaviour and remains usable standalone.
+        private bool thetislink_recenter_owner_active = false;
+        public bool ThetisLinkRecenterOwnerActive
+        {
+            get { return thetislink_recenter_owner_active; }
+            set { thetislink_recenter_owner_active = value; }
         }
         // [ThetisLink TL2-1] END
 
@@ -31495,16 +31527,18 @@ namespace Thetis
                                 rx1_osc = 0.0;
                             }
                             else  // not a jump - more like tuning
-                            // [ThetisLink TL2-1]: smooth-scroll-LEFT — SKIP onder vink-aan; TL-server doet ZZCN-recenter
-                            if (!ThetisLinkExtensionsEnabled && !bLimitToSpectral && (((-rx1_osc) - Lmargin) < Ldisp)) // scroll the spectrum display smoothly at the edge and keep going
+                            // [ThetisLink TL2-1 2026-05-14]: smooth-scroll-LEFT — SKIP only when extensions on AND an active
+                            // TL-server has claimed recenter via `auto_recenter_owner_ex`. Without an owner Thetis falls back
+                            // to upstream behaviour and keeps scrolling on its own (otherwise VFO pins at visible edge).
+                            if (!(ThetisLinkExtensionsEnabled && ThetisLinkRecenterOwnerActive) && !bLimitToSpectral && (((-rx1_osc) - Lmargin) < Ldisp)) // scroll the spectrum display smoothly at the edge and keep going
                             {
                                 double adjustFreq = Ldisp - ((-rx1_osc) - Lmargin);
                                 CentreFrequency -= adjustFreq * 1e-6;
                                 rx1_osc -= adjustFreq;
                             }
                             else
-                            // [ThetisLink TL2-1]: smooth-scroll-RIGHT — SKIP onder vink-aan
-                            if (!ThetisLinkExtensionsEnabled && !bLimitToSpectral && (((-rx1_osc) + Hmargin) > Hdisp))
+                            // [ThetisLink TL2-1 2026-05-14]: smooth-scroll-RIGHT — same gate as LEFT.
+                            if (!(ThetisLinkExtensionsEnabled && ThetisLinkRecenterOwnerActive) && !bLimitToSpectral && (((-rx1_osc) + Hmargin) > Hdisp))
                             {
                                 double adjustFreq = ((-rx1_osc) + Hmargin) - Hdisp;
                                 CentreFrequency += adjustFreq * 1e-6;
@@ -32508,15 +32542,15 @@ namespace Thetis
                                     rx2_osc = 0.0;
                                 }
                                 else  // not a jump - more like tuning
-                                // [ThetisLink TL2-1]: smooth-scroll-LEFT — SKIP onder vink-aan
-                                if (!ThetisLinkExtensionsEnabled && !bLimitToSpectral && (((-rx2_osc) - Lmargin) < Ldisp)) // scroll the spectrum display smoothly at the edge and keep going
+                                // [ThetisLink TL2-1 2026-05-14]: smooth-scroll-LEFT — gated on owner-handshake (see RX1 path).
+                                if (!(ThetisLinkExtensionsEnabled && ThetisLinkRecenterOwnerActive) && !bLimitToSpectral && (((-rx2_osc) - Lmargin) < Ldisp)) // scroll the spectrum display smoothly at the edge and keep going
                                 {
                                     double adjustFreq = Ldisp - ((-rx2_osc) - Lmargin);
                                     CentreRX2Frequency -= adjustFreq * 1.0e-6;
                                     rx2_osc -= adjustFreq;
                                 }
-                                // [ThetisLink TL2-1]: smooth-scroll-RIGHT — SKIP onder vink-aan
-                                else if (!ThetisLinkExtensionsEnabled && !bLimitToSpectral && (((-rx2_osc) + Hmargin) > Hdisp))
+                                // [ThetisLink TL2-1 2026-05-14]: smooth-scroll-RIGHT — gated on owner-handshake.
+                                else if (!(ThetisLinkExtensionsEnabled && ThetisLinkRecenterOwnerActive) && !bLimitToSpectral && (((-rx2_osc) + Hmargin) > Hdisp))
                                 {
                                     double adjustFreq = ((-rx2_osc) + Hmargin) - Hdisp;
                                     CentreRX2Frequency += adjustFreq * 1.0e-6;

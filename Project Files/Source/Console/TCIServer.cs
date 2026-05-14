@@ -795,6 +795,15 @@ namespace Thetis
         private bool m_tciPttActive = false;
         private int m_txQueuedComplexSamples = 0;
         private bool m_seenModernTxAudioNegotiation = false;
+        // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+        // Per-client auto-recenter ownership flag. Set when this listener has sent
+        // `auto_recenter_owner_ex:1;`. Used so the server can release the global
+        // recenter-owner refcount on socket disconnect without leaking ownership
+        // when the TL server crashes / network drops without a graceful `:0;`.
+        private bool m_isRecenterOwner = false;
+        public bool IsRecenterOwner { get { return m_isRecenterOwner; } }
+        public void SetRecenterOwnerFlag(bool v) { m_isRecenterOwner = v; }
+        // [ThetisLink TL2-1] END
         private readonly clsTCISensorManager m_sensorManager = new clsTCISensorManager();
         private System.Threading.Timer m_tmRxSensors;
         private System.Threading.Timer m_tmTxSensors;
@@ -2707,15 +2716,26 @@ namespace Thetis
 			Debug.Print("SENT INITIAL STATE");
 		}
 
-		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
-		// Capability-broadcast for TL2-1 fork. Sends `tci_caps_ex:cap1,cap2,...;` text-frame
-		// when ThetisLink-extensions checkbox is on; no-op when off (stock-mode).
-		// Initial caps list is empty in this skeleton patch — opvolger-patches will populate
-		// with `_ex` command names as they are implemented (diversity, vfo_sync, etc).
-		private void sendCapabilities()
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06; 2026-05-14
+		// Capability-broadcast for TL2-1 fork. Always emits a `tci_caps_ex:...;` frame
+		// when extensions are enabled, and an empty `tci_caps_ex:;` frame when they
+		// are disabled — that empty frame is the signal a connected client uses to
+		// drop its cached caps and stop driving the _ex feature surface (e.g. the
+		// TL-server's CTUN auto-recenter). Without this empty-frame the server keeps
+		// using cached caps from the moment-of-connect and goes on touching CTUN
+		// even after the user has switched extensions off in Thetis.
+		// Called on (1) connect, (2) client query of "tci_caps_ex;" without args, and
+		// (3) `ThetisLinkExtensionsEnabled` toggle via BroadcastCapsRefresh().
+		public void SendCapabilitiesFrame()
 		{
-			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled)
+			if (consoleThreadSafe == null)
 				return;
+
+			if (!consoleThreadSafe.ThetisLinkExtensionsEnabled)
+			{
+				sendTextFrame("tci_caps_ex:;");
+				return;
+			}
 
 			var caps = new System.Collections.Generic.List<string>();
 			caps.Add("rx_filter_preset_ex");
@@ -2740,6 +2760,13 @@ namespace Thetis
 			// There is NO `auto_recenter_ex:` TCI command handler — server gates the
 			// feature on `has_cap("auto_recenter_ex")`.
 			caps.Add("auto_recenter_ex");
+			// [ThetisLink TL2-1] END
+			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+			// Handshake cap: tells TL-server that this Thetis supports the
+			// `auto_recenter_owner_ex:true|false;` claim/release command. Without
+			// the handshake, smooth-scroll-recenter stays enabled and Thetis can
+			// keep tuning on its own when no server is connected.
+			caps.Add("auto_recenter_owner_ex");
 			// [ThetisLink TL2-1] END
 
 			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
@@ -3116,6 +3143,44 @@ namespace Thetis
 				}
 			}
 		}
+
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+		// auto_recenter_owner_ex:true|false;  Handshake by which a TCI client claims
+		// (or releases) ownership of the smooth-scroll re-center action.
+		//
+		// Why this exists: when `ThetisLinkExtensionsEnabled` is on, the smooth-scroll
+		// paths in console.cs are guarded so Thetis does not move CentreFrequency
+		// itself — the TL server takes over via ZZCN/ZZCO toggle. But with NO active
+		// server connected, no one is left to perform the recenter and the VFO pins
+		// at the visible-spectrum edge waiting for a ZZCN trigger that never comes.
+		// The handshake lets Thetis distinguish "extensions on, server active" from
+		// "extensions on, no server". Smooth-scroll only stays disabled when at least
+		// one connected client has claimed ownership; otherwise Thetis behaves as
+		// stock and scrolls normally.
+		//
+		// Release is automatic on socket disconnect (TCPIPtciServer.OnSocketListenerDisconnected
+		// decrements the refcount based on m_isRecenterOwner) so a server crash or
+		// network drop does not leak ownership.
+		private void handleAutoRecenterOwnerEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length != 1) return;
+			if (args[0].Trim() == "") return;
+			if (!bool.TryParse(args[0], out bool claim)) return;
+
+			if (claim && !m_isRecenterOwner)
+			{
+				m_isRecenterOwner = true;
+				m_server?.IncrementRecenterOwners();
+			}
+			else if (!claim && m_isRecenterOwner)
+			{
+				m_isRecenterOwner = false;
+				m_server?.DecrementRecenterOwners();
+			}
+			sendTextFrame("auto_recenter_owner_ex:" + m_isRecenterOwner.ToString().ToLower() + ";");
+		}
+		// [ThetisLink TL2-1] END
 
 		// ── Diversity null-suite (autonull / smartnull / ultranull) ──────────
 		// Algorithm-driven progress streams. Each handler runs the algorithm in a
@@ -3835,7 +3900,7 @@ namespace Thetis
 			// Order: caps first (so client knows what the server supports), then TL-only _ex
 			// initial state (so client can sync without querying). Both self-gated and no-op
 			// when the ThetisLink-extensions checkbox is off.
-			sendCapabilities();
+			SendCapabilitiesFrame();
 			sendInitialThetisLinkState();
 			// [ThetisLink TL2-1] END
 
@@ -6704,6 +6769,11 @@ namespace Thetis
                         handleDdcSampleRateEx(args);
                         break;
                     // [ThetisLink TL2-1] END
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+                    case "auto_recenter_owner_ex":
+                        handleAutoRecenterOwnerEx(args);
+                        break;
+                    // [ThetisLink TL2-1] END
 
                 }
             }
@@ -6788,7 +6858,7 @@ namespace Thetis
                     // ThetisLink-extensions checkbox, so when the vink is off this case becomes
                     // a no-op (matching stock behaviour where the command is unrecognised).
                     case "tci_caps_ex":
-                        sendCapabilities();
+                        SendCapabilitiesFrame();
                         break;
                     // Diversity-basics dispatch (no-args = GET; calls handler with empty arg).
                     // Sweep and fastsweep are intentionally absent — they require args to be useful.
@@ -7724,6 +7794,14 @@ namespace Thetis
 		private Thread m_purgingThread = null;
 		private List<TCPIPtciSocketListener> m_socketListenersList = null;
         private TCPIPtciSocketListener m_activeTxAudioListener = null;
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+		// Refcount of TCI clients that have claimed auto-recenter ownership via
+		// the `auto_recenter_owner_ex:true;` handshake. >0 means the console-side
+		// smooth-scroll guards stay active (a server is driving recenter via
+		// ZZCN/ZZCO). 0 means console falls back to upstream smooth-scroll so
+		// Thetis remains usable standalone.
+		private int m_recenterOwnerCount = 0;
+		// [ThetisLink TL2-1] END
 		private object m_objLocker = new object();
         private bool m_bSleepingInPurge = false;
 		private bool m_bDelegatesAdded = false;
@@ -8263,7 +8341,51 @@ namespace Thetis
         internal void OnSocketListenerDisconnected(TCPIPtciSocketListener socketListener)
         {
             m_cwController?.DisconnectClient(socketListener);
+            // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+            // Release recenter ownership if this listener was an owner. Covers the
+            // crash / network-drop path where the server never sent `:false;`.
+            if (socketListener != null && socketListener.IsRecenterOwner)
+            {
+                socketListener.SetRecenterOwnerFlag(false);
+                DecrementRecenterOwners();
+            }
+            // [ThetisLink TL2-1] END
         }
+
+        // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+        // Broadcast a fresh tci_caps_ex frame to every connected listener — called
+        // when ThetisLinkExtensionsEnabled is toggled so the active TL-server drops
+        // its cached caps immediately (without this it keeps acting on stale caps
+        // and continues driving CTUN long after the user disabled extensions).
+        internal void BroadcastCapsRefresh()
+        {
+            lock (m_objLocker)
+            {
+                if (m_socketListenersList == null) return;
+                foreach (var listener in m_socketListenersList)
+                {
+                    if (listener == null || listener.IsDisconnected()) continue;
+                    try { listener.SendCapabilitiesFrame(); }
+                    catch { /* best-effort; never let one listener block the others */ }
+                }
+            }
+        }
+        internal void IncrementRecenterOwners()
+        {
+            int n = System.Threading.Interlocked.Increment(ref m_recenterOwnerCount);
+            if (n == 1 && _console != null) _console.ThetisLinkRecenterOwnerActive = true;
+        }
+        internal void DecrementRecenterOwners()
+        {
+            int n = System.Threading.Interlocked.Decrement(ref m_recenterOwnerCount);
+            if (n <= 0)
+            {
+                // Clamp at zero against double-release races (paranoia).
+                System.Threading.Interlocked.Exchange(ref m_recenterOwnerCount, 0);
+                if (_console != null) _console.ThetisLinkRecenterOwnerActive = false;
+            }
+        }
+        // [ThetisLink TL2-1] END
 
         internal void OnCwMacrosEmpty(int rx)
         {
