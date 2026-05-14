@@ -15021,6 +15021,15 @@ namespace Thetis
                 {
                     try { m_tcpTCIServer?.BroadcastCapsRefresh(); }
                     catch { /* TCI server may not be up yet; safe to ignore */ }
+                    // [TL2-1 2026-05-14] When extensions transition OFF→ON we
+                    // also need to re-push the _ex initial-state values
+                    // (currently only S9Frequency) so the server's tracking
+                    // matches reality instead of staying on the IARU fallback.
+                    if (value)
+                    {
+                        try { m_tcpTCIServer?.BroadcastS9Frequency(_s9Frequency); }
+                        catch { /* best-effort */ }
+                    }
                 }
             }
         }
@@ -48232,6 +48241,11 @@ namespace Thetis
             set {
                 _s9Frequency = value;
                 MeterManager.UpdateS9(_s9Frequency);
+                // [ThetisLink TL2-1 2026-05-14] Push the new threshold to any
+                // connected TL-server so its S-meter band-shift updates in
+                // sync with the Multimeter widget on the next sensor tick.
+                try { m_tcpTCIServer?.BroadcastS9Frequency(_s9Frequency); }
+                catch { /* TCI server not running yet — initial-state push will cover it */ }
             }
         }
         #region AutoStartCode

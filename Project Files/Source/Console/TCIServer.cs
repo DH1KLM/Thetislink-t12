@@ -2768,6 +2768,8 @@ namespace Thetis
 			// keep tuning on its own when no server is connected.
 			caps.Add("auto_recenter_owner_ex");
 			// [ThetisLink TL2-1] END
+			// [ThetisLink TL2-1 2026-05-14] S9 frequency threshold push.
+			caps.Add("s9_frequency_ex");
 
 			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
 		}
@@ -2798,6 +2800,12 @@ namespace Thetis
 			// Gain push is per-RX; emit both
 			handleDiversityGainEx(new string[] { "0" });
 			handleDiversityGainEx(new string[] { "1" });
+			// [ThetisLink TL2-1 2026-05-14] S9 frequency threshold (MHz). User-
+			// configurable in Setup; default 30 MHz. Above this VFO frequency the
+			// S-meter scale uses S9 = -93 dBm instead of -73 dBm (IARU Region 1
+			// VHF/UHF convention). The TL-server needs this value to render the
+			// client S-meter consistently with Thetis' own Multimeter widget.
+			sendS9FrequencyEx(consoleThreadSafe.S9Frequency);
 		}
 
 		// Lazy-init for the DiversityForm. CAT diversity properties on Console proxy to
@@ -3143,6 +3151,27 @@ namespace Thetis
 				}
 			}
 		}
+
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+		// s9_frequency_ex:<mhz>;  Push of the S9-frequency threshold (MHz).
+		// VFO frequencies at or above this value get S-meter scale S9 = -93 dBm
+		// (IARU VHF/UHF convention); below it the HF S9 = -73 dBm scale applies.
+		// User-configurable on the Thetis side (default 30 MHz). The TL-server
+		// holds the last-pushed value and applies the appropriate band shift
+		// when computing S-meter display values.
+		private void sendS9FrequencyEx(double mhz)
+		{
+			sendTextFrame("s9_frequency_ex:" + mhz.ToString("F6", CultureInfo.InvariantCulture) + ";");
+		}
+		// Public wrapper so the server's broadcast helper can re-push the value
+		// when the user changes it in Setup at runtime. Self-gates on extensions
+		// so a runtime-toggle of the extensions checkbox doesn't leak frames.
+		public void PushS9Frequency(double mhz)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			sendS9FrequencyEx(mhz);
+		}
+		// [ThetisLink TL2-1] END
 
 		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
 		// auto_recenter_owner_ex:true|false;  Handshake by which a TCI client claims
@@ -8351,6 +8380,26 @@ namespace Thetis
             }
             // [ThetisLink TL2-1] END
         }
+
+        // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
+        // Broadcast the S9 frequency threshold to every connected listener.
+        // Called by Console when the user changes S9Frequency in Setup so the
+        // TL-server can re-evaluate the band-shift on the very next S-meter
+        // tick instead of waiting for the next session restart.
+        internal void BroadcastS9Frequency(double mhz)
+        {
+            lock (m_objLocker)
+            {
+                if (m_socketListenersList == null) return;
+                foreach (var listener in m_socketListenersList)
+                {
+                    if (listener == null || listener.IsDisconnected()) continue;
+                    try { listener.PushS9Frequency(mhz); }
+                    catch { /* best-effort; never let one listener block the others */ }
+                }
+            }
+        }
+        // [ThetisLink TL2-1] END
 
         // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
         // Broadcast a fresh tci_caps_ex frame to every connected listener — called
