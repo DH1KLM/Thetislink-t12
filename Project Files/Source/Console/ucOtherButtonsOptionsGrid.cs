@@ -675,8 +675,8 @@ namespace Thetis
             (OtherButtonId.AGC_M5,         6, 8, "AGC-", "", "", "Decrease gain"),
             (OtherButtonId.INFO_TEXT,     -1, -1, "Hardware", "", "", ""),
             (OtherButtonId.SPLITTER,      -1, -1, "", "", "", ""),
-            (OtherButtonId.DITHER,         7, 0, "Dither", "", "", "Enable fpga dither on/off"),
-            (OtherButtonId.RANDOM,         7, 1, "Random", "", "", "Enable fpga random on/off"),
+            (OtherButtonId.DITHER,         7, 0, "Rx2A2", "", "", "Enable Antenna 2 on Rx2 for Red Pitaya"), //DH1KLM for Yevgeni
+            (OtherButtonId.RANDOM,         7, 1, "Rx2A1", "", "", "Enable Antenna 1 on Rx2 for Red Pitaya"), //DH1KLM for Yevgeni
             (OtherButtonId.SR_48000,       7, 2, "48k", "", "", "48k hardware sample rate"),
             (OtherButtonId.SR_96000,       7, 3, "96k", "", "", "96k hardware sample rate"),
             (OtherButtonId.SR_192000,      7, 4, "192k", "", "", "192k hardware sample rate"),

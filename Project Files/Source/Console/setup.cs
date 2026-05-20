@@ -13145,7 +13145,7 @@ namespace Thetis
             if (initializing) return;
             int v = chkMercDither.Checked ? 1 : 0;
             NetworkIO.SetADCDither(v);
-
+            console.SetupInfoBarButton(ucInfoBar.ActionTypes.Dither, chkMercDither.Checked); // RX2 Ant.2 DH1KLM for Yevgeni Red Pitaya Ant. Interface
             console.SetGeneralSetting(0, OtherButtonId.DITHER, chkMercDither.Checked);
         }
         public bool MercDither
@@ -13165,7 +13165,7 @@ namespace Thetis
             if (initializing) return;
             int v = chkMercRandom.Checked ? 1 : 0;
             NetworkIO.SetADCRandom(v);
-
+            console.SetupInfoBarButton(ucInfoBar.ActionTypes.Random, chkMercRandom.Checked); // RX2 Ant.1 DH1KLM for Yevgeni Red Pitaya Ant. Interface
             console.SetGeneralSetting(0, OtherButtonId.RANDOM, chkMercRandom.Checked);
         }
         public bool MercRandom
@@ -20614,6 +20614,7 @@ namespace Thetis
             OPTIONS3_Tab,
             PA_Tab,
             HWSET_Tab,
+            FW_Tab, // DH1KLM for Yevgeni Red Pitaya Ant. Interface
             OtherHW_PA_Tab
         }
         public void ShowSetupTab(SetupTab eTab)
@@ -22782,6 +22783,16 @@ namespace Thetis
         {
             get { return chkHideFeebackLevel.Checked; }
             set { chkHideFeebackLevel.Checked = value; }
+        }
+        public bool RandomOn // RX2 Ant.1 DH1KLM for Yevgeni Red Pitaya
+        {
+            get { return chkMercRandom.Checked; }
+            set { chkMercRandom.Checked = value; }
+        }
+        public bool DitherOn // RX2 Ant.21 DH1KLM for Yevgeni Red Pitaya
+        {
+            get { return chkMercDither.Checked; }
+            set { chkMercDither.Checked = value; }
         }
         public void SwapRedBlueChanged()
         {

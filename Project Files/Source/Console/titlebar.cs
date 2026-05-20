@@ -57,7 +57,7 @@ namespace Thetis
 {
     class TitleBar
     {
-        public const string BUILD_NAME = "MW0LGE";
+        public const string BUILD_NAME = "Yevgeni Edition";
         // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
         public const string FORK_BUILD_NAME = "PA3GHM TL2-1";
         // [ThetisLink TL2-1] END
