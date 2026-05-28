@@ -11661,6 +11661,30 @@ namespace Thetis
             }
         }
 
+        // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-28
+        // Thread-safe accessor for the RXOnly ("Receive only") flag, used by the
+        // ThetisLink `rx_only_ex` TCI command so the remote can put Thetis in a
+        // preventive transmit-inhibit when the active Amplitec antenna position
+        // is RX-only. The fork stays "dumb" here — it just sets whatever the
+        // TL-server commands. The TL-server owns the snapshot/restore logic
+        // (only it knows the pre-takeover RXOnly state), so there is no
+        // fork-side auto-release. The RXOnly setter (~line 15396) touches UI
+        // controls (chkMOX/chkTUN/chk2TONE/chkVOX), so the set must be
+        // marshalled onto the UI thread — the TCI server calls this from a
+        // worker thread. The get reads the plain `_rx_only` bool (atomic-safe).
+        public bool CATRXOnly
+        {
+            get { return _rx_only; }
+            set
+            {
+                if (InvokeRequired)
+                    Invoke(new Action(() => RXOnly = value));
+                else
+                    RXOnly = value;
+            }
+        }
+        // [ThetisLink TL2-1] END
+
         public bool CATDiversityRXRefSource             // added G8NJJ
         {
             get

@@ -2770,6 +2770,11 @@ namespace Thetis
 			// [ThetisLink TL2-1] END
 			// [ThetisLink TL2-1 2026-05-14] S9 frequency threshold push.
 			caps.Add("s9_frequency_ex");
+			// [ThetisLink TL2-1 2026-05-28] Preventive transmit-inhibit. Lets the
+			// TL-server set Thetis' "Receive only" flag remotely so MOX/spacebar/
+			// hardware-PTT/VOX are all refused (not just reactively flipped back)
+			// when the active Amplitec antenna position is RX-only.
+			caps.Add("rx_only_ex");
 
 			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
 		}
@@ -2839,6 +2844,27 @@ namespace Thetis
 			// Always echo current state (covers both GET and post-SET confirmation).
 			sendTextFrame("diversity_enable_ex:" + consoleThreadSafe.CATDiversityEnable.ToString().ToLower() + ";");
 		}
+
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-28
+		// rx_only_ex:true|false;  Preventive transmit-inhibit via Thetis' built-in
+		// "Receive only" flag. SET drives console.RXOnly (marshalled to the UI
+		// thread by CATRXOnly), which refuses MOX/spacebar/hardware-PTT/VOX at
+		// the central chokepoint instead of reactively flipping back. GET (empty
+		// payload) and post-SET both echo the current state. Self-gates on the
+		// ThetisLink-extensions checkbox; vink UIT = no-op.
+		private void handleRxOnlyEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length != 1) return;
+
+			if (args[0].Trim() != "")
+			{
+				if (!bool.TryParse(args[0], out bool enabled)) return;
+				consoleThreadSafe.CATRXOnly = enabled;
+			}
+			sendTextFrame("rx_only_ex:" + consoleThreadSafe.CATRXOnly.ToString().ToLower() + ";");
+		}
+		// [ThetisLink TL2-1] END
 
 		// diversity_source_ex:N;  Valid: 0=RX1+RX2 combined, 1=RX1, 2=RX2.  GET when payload empty.
 		private void handleDiversitySourceEx(string[] args)
@@ -6758,6 +6784,12 @@ namespace Thetis
                         // this is special, we send whole of msg and handle it there
                         handleRunCatCommand(msg);
                         break;
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-28
+                    // Preventive transmit-inhibit (RX-only). SET form with arg.
+                    case "rx_only_ex":
+                        handleRxOnlyEx(args);
+                        break;
+                    // [ThetisLink TL2-1] END
                     // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
                     // Diversity-basics dispatch (SET form with args). Each handler self-gates on
                     // ThetisLinkExtensionsEnabled; vink UIT means no-op.
@@ -6889,6 +6921,12 @@ namespace Thetis
                     case "tci_caps_ex":
                         SendCapabilitiesFrame();
                         break;
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-28
+                    // Preventive transmit-inhibit (RX-only) — GET form (echo state).
+                    case "rx_only_ex":
+                        handleRxOnlyEx(new string[] { "" });
+                        break;
+                    // [ThetisLink TL2-1] END
                     // Diversity-basics dispatch (no-args = GET; calls handler with empty arg).
                     // Sweep and fastsweep are intentionally absent — they require args to be useful.
                     case "diversity_enable_ex":
