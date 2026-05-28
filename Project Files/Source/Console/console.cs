@@ -15422,6 +15422,11 @@ namespace Thetis
             get { return _rx_only; }
             set
             {
+                // [ThetisLink TL2-3] BEGIN — modification by PA3GHM (cjenschede), 2026-05-29
+                // Detect change so we can broadcast a TCI push-notify only on real
+                // transitions (UI-sync paths sometimes write the same value).
+                bool _tl_rx_only_changed = _rx_only != value;
+                // [ThetisLink TL2-3] END
                 _rx_only = value;
                 if (_rx1_dsp_mode != DSPMode.SPEC &&
                     _rx1_dsp_mode != DSPMode.DRM &&
@@ -15438,6 +15443,21 @@ namespace Thetis
                     if (SetupForm.RXOnly != _rx_only)
                         SetupForm.RXOnly = _rx_only;
                 }
+                // [ThetisLink TL2-3] BEGIN — modification by PA3GHM (cjenschede), 2026-05-29
+                // Push the new state to every connected TCI listener so external
+                // clients (ThetisLink server, other _ex-aware clients) see the
+                // transition in real time — including operator-driven toggles
+                // via Setup → 'Receive only'. Without this, the stock fork only
+                // echoed rx_only_ex on TCI-driven SET/GET, leaving clients with
+                // a stale cache for as long as the operator's manual toggle
+                // wasn't observed elsewhere. Self-gate on extensions is in
+                // PushRxOnlyEx; safe-ignore if the TCI server isn't up yet.
+                if (_tl_rx_only_changed)
+                {
+                    try { m_tcpTCIServer?.BroadcastRxOnly(_rx_only); }
+                    catch { /* best-effort */ }
+                }
+                // [ThetisLink TL2-3] END
             }
         }
 

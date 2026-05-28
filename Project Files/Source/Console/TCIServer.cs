@@ -3201,6 +3201,24 @@ namespace Thetis
 		}
 		// [ThetisLink TL2-1] END
 
+		// [ThetisLink TL2-3] BEGIN — modification by PA3GHM (cjenschede), 2026-05-29
+		// rx_only_ex:<bool>;  Push of the current "Receive only" state. Mirrors
+		// the s9_frequency_ex pattern: console.RXOnly setter calls
+		// TCPIPtciServer.BroadcastRxOnly on every real transition, so external
+		// clients see operator-driven UI toggles (Setup → 'Receive only') in
+		// real time — not just on TCI SET/GET handler-echoes. Self-gates on
+		// the ThetisLink-extensions checkbox.
+		private void sendRxOnlyEx(bool rxOnly)
+		{
+			sendTextFrame("rx_only_ex:" + rxOnly.ToString().ToLower() + ";");
+		}
+		public void PushRxOnlyEx(bool rxOnly)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			sendRxOnlyEx(rxOnly);
+		}
+		// [ThetisLink TL2-3] END
+
 		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
 		// auto_recenter_owner_ex:true|false;  Handshake by which a TCI client claims
 		// (or releases) ownership of the smooth-scroll re-center action.
@@ -8440,6 +8458,28 @@ namespace Thetis
             }
         }
         // [ThetisLink TL2-1] END
+
+        // [ThetisLink TL2-3] BEGIN — modification by PA3GHM (cjenschede), 2026-05-29
+        // Broadcast a "Receive only" state-change to every connected listener.
+        // Called by console.RXOnly setter on every real transition so external
+        // TL-servers see operator-driven Setup toggles in real time (not only
+        // on TCI SET/GET handler-echoes). Public method name (BroadcastRxOnly)
+        // matches the m_tcpTCIServer?.BroadcastRxOnly(...) call-site in
+        // console.cs.
+        internal void BroadcastRxOnly(bool rxOnly)
+        {
+            lock (m_objLocker)
+            {
+                if (m_socketListenersList == null) return;
+                foreach (var listener in m_socketListenersList)
+                {
+                    if (listener == null || listener.IsDisconnected()) continue;
+                    try { listener.PushRxOnlyEx(rxOnly); }
+                    catch { /* best-effort; never let one listener block the others */ }
+                }
+            }
+        }
+        // [ThetisLink TL2-3] END
 
         // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
         // Broadcast a fresh tci_caps_ex frame to every connected listener — called
