@@ -2770,11 +2770,13 @@ namespace Thetis
 			// [ThetisLink TL2-1] END
 			// [ThetisLink TL2-1 2026-05-14] S9 frequency threshold push.
 			caps.Add("s9_frequency_ex");
-			// [ThetisLink TL2-1 2026-05-28] Preventive transmit-inhibit. Lets the
-			// TL-server set Thetis' "Receive only" flag remotely so MOX/spacebar/
-			// hardware-PTT/VOX are all refused (not just reactively flipped back)
-			// when the active Amplitec antenna position is RX-only.
+			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-28
+			// Preventive transmit-inhibit. Lets the TL-server set Thetis' "Receive
+			// only" flag remotely so MOX/spacebar/hardware-PTT/VOX are all refused
+			// (not just reactively flipped back) when the active Amplitec antenna
+			// position is RX-only.
 			caps.Add("rx_only_ex");
+			// [ThetisLink TL2-1] END
 
 			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
 		}
