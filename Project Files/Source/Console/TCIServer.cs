@@ -2464,6 +2464,20 @@ namespace Thetis
 			sendTextFrame(s);
 		}
 
+		// [ThetisLink TL2-4] BEGIN — modification by PA3GHM (cjenschede), 2026-06-03
+		// Listener-side wrapper for the parent TCPIPtciServer.BroadcastFilterBand
+		// fan-out. Called after a TCI-driven mode-switch so that ALL connected
+		// TCI clients receive the new rx_filter_band — not just the listener that
+		// processed the inbound MODULATION command. rx is 0-based (0=RX1, 1=RX2)
+		// per existing sendFilterBand convention. Honors m_disconnected so a
+		// closing socket cannot block the broadcaster.
+		public void PushFilterBand(int rx, int low, int high)
+		{
+			if (m_disconnected) return;
+			sendFilterBand(rx, low, high);
+		}
+		// [ThetisLink TL2-4] END
+
 		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
 		// Push for filter-preset index (Filter enum value F1..VAR2) — fork-only, complements
 		// stock `rx_filter_band` (which only carries low/high cut Hz, not the preset slot index).
@@ -2770,6 +2784,13 @@ namespace Thetis
 			// [ThetisLink TL2-1] END
 			// [ThetisLink TL2-1 2026-05-14] S9 frequency threshold push.
 			caps.Add("s9_frequency_ex");
+			// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-28
+			// Preventive transmit-inhibit. Lets the TL-server set Thetis' "Receive
+			// only" flag remotely so MOX/spacebar/hardware-PTT/VOX are all refused
+			// (not just reactively flipped back) when the active Amplitec antenna
+			// position is RX-only.
+			caps.Add("rx_only_ex");
+			// [ThetisLink TL2-1] END
 
 			sendTextFrame("tci_caps_ex:" + string.Join(",", caps) + ";");
 		}
@@ -2839,6 +2860,27 @@ namespace Thetis
 			// Always echo current state (covers both GET and post-SET confirmation).
 			sendTextFrame("diversity_enable_ex:" + consoleThreadSafe.CATDiversityEnable.ToString().ToLower() + ";");
 		}
+
+		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-28
+		// rx_only_ex:true|false;  Preventive transmit-inhibit via Thetis' built-in
+		// "Receive only" flag. SET drives console.RXOnly (marshalled to the UI
+		// thread by CATRXOnly), which refuses MOX/spacebar/hardware-PTT/VOX at
+		// the central chokepoint instead of reactively flipping back. GET (empty
+		// payload) and post-SET both echo the current state. Self-gates on the
+		// ThetisLink-extensions checkbox; vink UIT = no-op.
+		private void handleRxOnlyEx(string[] args)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			if (args == null || args.Length != 1) return;
+
+			if (args[0].Trim() != "")
+			{
+				if (!bool.TryParse(args[0], out bool enabled)) return;
+				consoleThreadSafe.CATRXOnly = enabled;
+			}
+			sendTextFrame("rx_only_ex:" + consoleThreadSafe.CATRXOnly.ToString().ToLower() + ";");
+		}
+		// [ThetisLink TL2-1] END
 
 		// diversity_source_ex:N;  Valid: 0=RX1+RX2 combined, 1=RX1, 2=RX2.  GET when payload empty.
 		private void handleDiversitySourceEx(string[] args)
@@ -3172,6 +3214,24 @@ namespace Thetis
 			sendS9FrequencyEx(mhz);
 		}
 		// [ThetisLink TL2-1] END
+
+		// [ThetisLink TL2-3] BEGIN — modification by PA3GHM (cjenschede), 2026-05-29
+		// rx_only_ex:<bool>;  Push of the current "Receive only" state. Mirrors
+		// the s9_frequency_ex pattern: console.RXOnly setter calls
+		// TCPIPtciServer.BroadcastRxOnly on every real transition, so external
+		// clients see operator-driven UI toggles (Setup → 'Receive only') in
+		// real time — not just on TCI SET/GET handler-echoes. Self-gates on
+		// the ThetisLink-extensions checkbox.
+		private void sendRxOnlyEx(bool rxOnly)
+		{
+			sendTextFrame("rx_only_ex:" + rxOnly.ToString().ToLower() + ";");
+		}
+		public void PushRxOnlyEx(bool rxOnly)
+		{
+			if (consoleThreadSafe == null || !consoleThreadSafe.ThetisLinkExtensionsEnabled) return;
+			sendRxOnlyEx(rxOnly);
+		}
+		// [ThetisLink TL2-3] END
 
 		// [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
 		// auto_recenter_owner_ex:true|false;  Handshake by which a TCI client claims
@@ -5289,11 +5349,28 @@ namespace Thetis
 						{
 							if(consoleThreadSafe.RX1DSPMode != mode)
 								consoleThreadSafe.RX1DSPMode = mode;
+							// [ThetisLink TL2-4] BEGIN — modification by PA3GHM (cjenschede), 2026-06-03
+							// Stock Thetis stuurt geen rx_filter_band notify na een TCI-driven
+							// DSPMode-change; daardoor blijft de spectrum-overlay in TCI-clients
+							// (en Thetis Console) de oude mode-grenzen tonen. Hier fan-outen via
+							// TCPIPtciServer.BroadcastFilterBand zodat ALLE verbonden TCI-clients
+							// (niet alleen degene die dit MODULATION-commando stuurde) de actuele
+							// filter_low/high direct gesynchroniseerd krijgen. DSPMode-setter
+							// past de filter-preset synchroon aan, dus RX1FilterLow/High zijn op
+							// dit punt al actueel.
+							m_server?.BroadcastFilterBand(0, consoleThreadSafe.RX1FilterLow, consoleThreadSafe.RX1FilterHigh);
+							// [ThetisLink TL2-4] END
 						}
 						else if (rx == 1)
 						{
 							if(consoleThreadSafe.RX2DSPMode != mode)
 								consoleThreadSafe.RX2DSPMode = mode;
+							// [ThetisLink TL2-4] BEGIN — modification by PA3GHM (cjenschede), 2026-06-03
+							// Zie comment in rx==0 tak: fan-out filter-band notify via parent
+							// BroadcastFilterBand zodat alle TCI-clients de actuele RX2-filter-
+							// grenzen direct krijgen.
+							m_server?.BroadcastFilterBand(1, consoleThreadSafe.RX2FilterLow, consoleThreadSafe.RX2FilterHigh);
+							// [ThetisLink TL2-4] END
 						}
 					}
 				}
@@ -6758,6 +6835,12 @@ namespace Thetis
                         // this is special, we send whole of msg and handle it there
                         handleRunCatCommand(msg);
                         break;
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-28
+                    // Preventive transmit-inhibit (RX-only). SET form with arg.
+                    case "rx_only_ex":
+                        handleRxOnlyEx(args);
+                        break;
+                    // [ThetisLink TL2-1] END
                     // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-06
                     // Diversity-basics dispatch (SET form with args). Each handler self-gates on
                     // ThetisLinkExtensionsEnabled; vink UIT means no-op.
@@ -6889,6 +6972,12 @@ namespace Thetis
                     case "tci_caps_ex":
                         SendCapabilitiesFrame();
                         break;
+                    // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-28
+                    // Preventive transmit-inhibit (RX-only) — GET form (echo state).
+                    case "rx_only_ex":
+                        handleRxOnlyEx(new string[] { "" });
+                        break;
+                    // [ThetisLink TL2-1] END
                     // Diversity-basics dispatch (no-args = GET; calls handler with empty arg).
                     // Sweep and fastsweep are intentionally absent — they require args to be useful.
                     case "diversity_enable_ex":
@@ -8400,6 +8489,51 @@ namespace Thetis
             }
         }
         // [ThetisLink TL2-1] END
+
+        // [ThetisLink TL2-3] BEGIN — modification by PA3GHM (cjenschede), 2026-05-29
+        // Broadcast a "Receive only" state-change to every connected listener.
+        // Called by console.RXOnly setter on every real transition so external
+        // TL-servers see operator-driven Setup toggles in real time (not only
+        // on TCI SET/GET handler-echoes). Public method name (BroadcastRxOnly)
+        // matches the m_tcpTCIServer?.BroadcastRxOnly(...) call-site in
+        // console.cs.
+        internal void BroadcastRxOnly(bool rxOnly)
+        {
+            lock (m_objLocker)
+            {
+                if (m_socketListenersList == null) return;
+                foreach (var listener in m_socketListenersList)
+                {
+                    if (listener == null || listener.IsDisconnected()) continue;
+                    try { listener.PushRxOnlyEx(rxOnly); }
+                    catch { /* best-effort; never let one listener block the others */ }
+                }
+            }
+        }
+        // [ThetisLink TL2-3] END
+
+        // [ThetisLink TL2-4] BEGIN — modification by PA3GHM (cjenschede), 2026-06-03
+        // Broadcast a rx_filter_band frame to every connected listener after a
+        // TCI-driven mode-switch. Stock Thetis fires no rx_filter_band notify
+        // when handleModulationMessage sets the DSPMode; this central fan-out
+        // is invoked from handleModulationMessage so that ALL TCI clients
+        // (not just the one originating the MODULATION command) receive the
+        // updated filter-grenzen. rx is 0-based (0=RX1, 1=RX2) per existing
+        // sendFilterBand convention.
+        internal void BroadcastFilterBand(int rx, int low, int high)
+        {
+            lock (m_objLocker)
+            {
+                if (m_socketListenersList == null) return;
+                foreach (var listener in m_socketListenersList)
+                {
+                    if (listener == null || listener.IsDisconnected()) continue;
+                    try { listener.PushFilterBand(rx, low, high); }
+                    catch { /* best-effort; never let one listener block the others */ }
+                }
+            }
+        }
+        // [ThetisLink TL2-4] END
 
         // [ThetisLink TL2-1] BEGIN — modification by PA3GHM (cjenschede), 2026-05-14
         // Broadcast a fresh tci_caps_ex frame to every connected listener — called

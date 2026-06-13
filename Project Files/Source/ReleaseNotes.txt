@@ -37,6 +37,51 @@ the standard TCI behaviour from upstream v2.10.3.15 is preserved (build
 environment and titlebar/About-tag changes listed below remain present in
 either mode).
 
+TL2-4 fix on top of TL2-3 — applies regardless of the ThetisLink-extensions
+checkbox state:
+
+- [fix] **Upstream Thetis bug**: `handleModulationMessage` in `TCIServer.cs`
+  used to set `RX*DSPMode = mode` but never sent the corresponding
+  `rx_filter_band` notify afterwards. TCI clients (and Thetis Console's own
+  spectrum overlay) consequently kept showing the previous mode's filter
+  band-edges until the user manually re-touched the bandwidth — visible as
+  a stale overlay after AM↔LSB, SAM↔USB, etc. switches issued through the
+  TCI link.
+- [fix] After the DSPMode-set, the fork now fans out the actual
+  `RX*FilterLow/High` via the new `TCPIPtciServer::BroadcastFilterBand` to
+  every connected TCI listener (mirroring the TL2-3 `BroadcastRxOnly` /
+  `PushRxOnlyEx` pattern). All TCI clients — including non-ThetisLink
+  software (logging, SDR-Control, …) — therefore see the new filter band
+  immediately after a mode switch.
+- [note] This patch deliberately runs **regardless of the ThetisLink-
+  extensions checkbox**. `rx_filter_band` is a *stock* TCI event, not an
+  `_ex` extension, and the missing notify is a defect in standard Thetis
+  that every TCI client benefits from being fixed. Exception to the
+  general "extensions UIT = stock-identical" rule, owner-approved
+  2026-06-04. If upstream Thetis (ramdor) ever issues a fix for the same
+  defect, this fork patch becomes redundant and can be retired.
+
+TL2-3 additions on top of TL2-2 (active when the checkbox is on):
+- [add] `rx_only_ex` push-notify in `console.RXOnly` setter — broadcasts the new
+  "Receive only" state to every connected TCI listener on every real transition.
+  Previously the fork only echoed `rx_only_ex` on TCI SET/GET handler calls, which
+  left external clients with a stale cache when the operator toggled "Receive only"
+  manually via Setup. Companion to ThetisLink v2.0.4 preventive RX-only TX-inhibit:
+  ThetisLink's server-side echo-gated level-maintain now sees external Setup toggles
+  in real time instead of waiting for the next TCI SET.
+- [add] `TCPIPtciServerListener::PushRxOnlyEx(bool)` + `TCPIPtciServer::BroadcastRxOnly(bool)`
+  helpers mirroring the existing `PushS9Frequency` / `BroadcastS9Frequency` pattern.
+
+TL2-2 additions on top of TL2-1 (active when the checkbox is on):
+- [add] `rx_only_ex:true|false;` TCI command — preventive transmit-inhibit via Thetis'
+  built-in "Receive only" flag. SET drives `console.RXOnly` (marshalled to the UI
+  thread by `CATRXOnly`), which refuses MOX / spacebar / hardware-PTT / VOX at the
+  central chokepoint instead of reactively flipping back. GET (empty payload) and
+  post-SET both echo the current state. Self-gates on the ThetisLink-extensions
+  checkbox; vink UIT = no-op. Companion to ThetisLink v2.0.4 preventive TX-inhibit
+  on RX-only Amplitec positions — see `cjenschede/ThetisLink` v2.0.4 release notes.
+- [add] `caps.Add("rx_only_ex")` advertised in `tci_caps_ex`.
+
 TL2-1 additions on top of v2.10.3.15 (active when the checkbox is on):
 - [add] `tci_caps_ex` capability broadcast at TCI connect — advertises which TL-only `_ex`
   commands the build supports, so clients can mode-detect.
